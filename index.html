@@ -1,0 +1,964 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tesoro PA</title>
+<meta name="theme-color" content="#1c1f22">
+<meta name="description" content="Delay y alineación de PA y subs para eventos, cajas distribuidas y mapa de cobertura.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}html{-webkit-text-size-adjust:100%}</style>
+</head>
+<body>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Semi+Condensed:wght@500;600;700&display=swap">
+<style>
+/* Layout: barra superior con el proyecto, módulos a la izquierda, área de trabajo al centro, parámetros a la derecha */
+:root{
+  --bg:#1c1f22; --panel:#24282c; --panel2:#2c3136; --line:#394047; --fg:#e3e6e2; --mute:#9aa2a7; --dim:#6b747a;
+  --acc:#f0962e; --acc-ink:#24160a; --sub:#55bfd8; --sum:#eef0ea; --ok:#62c172; --warn:#e6b23c; --bad:#e2563f;
+  --ui:'Barlow Semi Condensed','Arial Narrow',system-ui,sans-serif;
+  --body:'Barlow',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font:15px/1.45 var(--body);}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.app{height:100%;display:grid;grid-template-columns:170px minmax(0,1fr) 340px;grid-template-rows:auto minmax(0,1fr);
+  grid-template-areas:"top top top" "nav work props";gap:0 14px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 14px}
+.top{grid-area:top;display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding-block:10px;border-bottom:1px solid var(--line);margin-bottom:14px}
+.brand{display:flex;align-items:center;gap:9px;font:700 19px/1 var(--ui);letter-spacing:.01em;white-space:nowrap}
+.brand svg{flex:none}
+.pname{flex:1 1 220px;min-width:0;max-width:420px;background:transparent;border:1px solid transparent;border-radius:6px;padding:5px 8px;font:500 16px var(--ui);color:var(--mute)}
+.pname:hover,.pname:focus{border-color:var(--line);color:var(--fg)}
+.tb{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+.btn{font:600 14px/1 var(--ui);background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:8px 12px;cursor:pointer;color:var(--fg)}
+.btn:hover{border-color:var(--dim)}
+.btn.pri{background:var(--acc);color:var(--acc-ink);border-color:transparent}
+.btn.pri:hover{filter:brightness(1.08)}
+.btn.sm{padding:6px 9px;font-size:13px}
+.btn.ghost{background:transparent}
+.btn.danger{color:var(--bad)}
+.side{grid-area:nav;overflow:auto;display:flex;flex-direction:column;gap:2px;padding-right:2px}
+.side h2{font:600 12px var(--ui);color:var(--dim);margin:14px 10px 4px;letter-spacing:.03em}
+.side h2:first-child{margin-top:0}
+.side button{text-align:left;background:transparent;border:0;border-radius:6px;padding:8px 10px;font:500 15px/1.2 var(--ui);color:var(--mute);cursor:pointer}
+.side button:hover{color:var(--fg);background:var(--panel)}
+.side button.on{background:var(--panel2);color:var(--acc)}
+.work{grid-area:work;overflow:auto;display:flex;flex-direction:column;gap:12px;min-width:0;padding-bottom:20px}
+.work>*{flex-shrink:0}
+.props{grid-area:props;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:4px 14px 18px}
+.vh{display:flex;flex-direction:column;gap:2px}
+.vh h1{font:700 23px/1.15 var(--ui);margin:0;text-wrap:balance}
+.vh p{margin:0;color:var(--mute);max-width:72ch}
+.cvbox{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;min-height:120px}
+.cvbox canvas{display:block;width:100%;height:100%}
+.h-side{height:clamp(300px,44vh,440px)}
+.h-chart{height:250px}
+.h-map{height:clamp(380px,64vh,760px)}
+.h-sm{height:230px}
+.h-polar{height:300px}
+.lead{margin:0;max-width:78ch;font-size:15.5px;line-height:1.5}
+.lead .btn{margin-left:6px}
+.row2b{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+.row2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:12px}
+.ros{display:flex;flex-wrap:wrap;gap:6px}
+.ro{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 11px;display:flex;flex-direction:column;min-width:0}
+.ro span{font:500 12.5px var(--ui);color:var(--mute)}
+.ro b{font:600 17px/1.25 var(--ui);font-variant-numeric:tabular-nums}
+.ro.ok b{color:var(--ok)}.ro.warn b{color:var(--warn)}.ro.bad b{color:var(--bad)}
+.note{background:color-mix(in srgb,var(--warn) 12%,var(--panel));border:1px solid color-mix(in srgb,var(--warn) 40%,var(--line));border-radius:8px;padding:9px 12px;font-size:14px}
+.note.err{background:color-mix(in srgb,var(--bad) 12%,var(--panel));border-color:color-mix(in srgb,var(--bad) 45%,var(--line))}
+.note p{margin:0}.note p+p{margin-top:4px}
+.note .btn{margin-top:8px}
+.props section{padding-block:12px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:9px}
+.props section:last-child{border-bottom:0}
+.props h3{font:600 15px var(--ui);margin:0;color:var(--fg)}
+.props .sub{font-size:13px;color:var(--mute);margin:-4px 0 0}
+.f{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;align-items:center}
+.f label{font-size:14px;color:var(--mute)}
+.f .help{grid-column:1/-1;font-size:12.5px;color:var(--dim);line-height:1.35;margin-top:-2px}
+.f input[type=range]{grid-column:1/-1;width:100%;accent-color:var(--acc);margin:0;height:22px}
+.rw{display:flex;align-items:center;gap:5px}
+.rw em{font-style:normal;font:500 13px var(--ui);color:var(--dim);min-width:18px}
+input[type=number],input[type=text],select,textarea{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:5px 7px;font:500 14.5px var(--ui);font-variant-numeric:tabular-nums}
+input[type=number]{width:78px;text-align:right}
+input[type=text]{width:100%}
+select{max-width:190px}
+.f select{width:172px}
+textarea{width:100%;min-height:180px;font:13px/1.4 ui-monospace,Menlo,Consolas,monospace;resize:vertical}
+input:hover,select:hover{border-color:var(--dim)}
+.chips{display:flex;flex-wrap:wrap;gap:5px}
+.chip{background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:4px 10px;font:600 13px var(--ui);color:var(--mute);cursor:pointer;font-variant-numeric:tabular-nums}
+.chip.on{background:var(--acc);border-color:var(--acc);color:var(--acc-ink)}
+.btnrow{display:flex;gap:6px;flex-wrap:wrap}
+.tblwrap{overflow-x:auto;margin-inline:-4px}
+.tbl{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.tbl th{font:600 12.5px var(--ui);color:var(--mute);text-align:left;padding:5px 6px;border-bottom:1px solid var(--line);white-space:nowrap}
+.tbl td{padding:4px 6px;border-bottom:1px solid color-mix(in srgb,var(--line) 60%,transparent);vertical-align:middle}
+.tbl.sm input[type=number]{width:50px;padding:3px 4px;font-size:13px}
+.tbl.sm th,.tbl.sm td{padding:4px 3px}
+.tbl.sm select{padding:3px 2px;font-size:13px}
+.tbl tr.sel td{background:var(--panel2)}
+.tbl th:first-child,.tbl td:first-child{padding-left:12px}
+.tbl tbody tr[data-id]{cursor:pointer}
+.tbl tbody tr[data-id]:hover td{background:color-mix(in srgb,var(--panel2) 60%,transparent)}
+.x{background:transparent;border:0;color:var(--dim);font-size:18px;line-height:1;cursor:pointer;padding:2px 6px;border-radius:4px}
+.x:hover{color:var(--bad);background:var(--panel2)}
+.st{display:inline-block;font:600 12px var(--ui);padding:2px 8px;border-radius:999px;white-space:nowrap}
+.st.ok{background:color-mix(in srgb,var(--ok) 18%,transparent);color:var(--ok)}
+.st.warn{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
+.st.bad{background:color-mix(in srgb,var(--bad) 18%,transparent);color:var(--bad)}
+.st.mut{background:var(--panel2);color:var(--mute)}
+.ps{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px;display:flex;flex-direction:column;gap:8px}
+.ps-h{display:flex;gap:6px;align-items:center}
+.ps-h select{flex:1;min-width:0;max-width:none}
+.mini{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.mini label{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--dim)}
+.mini input,.mini select{width:100%;max-width:none}
+.sug{font-size:13px;color:var(--mute);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sug b{color:var(--fg);font-family:var(--ui);font-variant-numeric:tabular-nums}
+details.how{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:9px 13px;color:var(--mute);font-size:14px}
+details.how summary{cursor:pointer;color:var(--fg);font:600 14.5px var(--ui)}
+details.how p{margin:8px 0 0;max-width:80ch}
+.badge{display:inline-flex;align-items:center;gap:6px;font:500 13px var(--ui);color:var(--mute)}
+.badge i{width:8px;height:8px;border-radius:50%;background:var(--warn);display:inline-block}
+.res{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px}
+.big{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 13px}
+.big span{display:block;font:500 13px var(--ui);color:var(--mute)}
+.big>b{font:700 22px/1.25 var(--ui);font-variant-numeric:tabular-nums}
+.big small{display:block;color:var(--dim);font-size:13px}
+.big.hl{border-color:var(--acc)}
+.big.hl>b{color:var(--acc)}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:11px 13px;display:flex;flex-direction:column;gap:8px}
+.card h3{margin:0;font:600 16px var(--ui)}
+.card .out{display:flex;flex-direction:column;gap:3px;border-top:1px solid var(--line);padding-top:7px}
+.card .out div{display:flex;justify-content:space-between;gap:10px;font-size:14px;color:var(--mute)}
+.card .out b{color:var(--fg);font:600 15px var(--ui);font-variant-numeric:tabular-nums;white-space:nowrap}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font:500 13px var(--ui);color:var(--mute)}
+.legend i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:middle;margin-right:5px}
+.modal-bg{position:fixed;inset:0;background:rgba(10,12,14,.62);display:flex;align-items:flex-start;justify-content:center;padding:max(40px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 16px max(16px,env(safe-area-inset-left,0px));z-index:50;overflow:auto}
+.modal{background:var(--panel);border:1px solid var(--line);border-radius:12px;width:min(600px,100%);padding:16px 18px 18px;display:flex;flex-direction:column;gap:12px}
+.modal h2{margin:0;font:700 20px var(--ui)}
+.modal .mh{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.modal ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
+.modal .grid2{display:grid;grid-template-columns:1fr 1fr;gap:9px 14px}
+.modal .grid2 label{display:flex;flex-direction:column;gap:3px;font-size:13px;color:var(--mute)}
+.modal .grid2 input{width:100%}
+.plist{display:flex;flex-direction:column;gap:6px}
+.plist div{display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.plist span{flex:1;min-width:0}
+.plist small{display:block;color:var(--dim)}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line)}
+.tabs button{background:transparent;border:0;border-bottom:2px solid transparent;padding:6px 10px;font:600 14px var(--ui);color:var(--mute);cursor:pointer}
+.tabs button.on{color:var(--fg);border-bottom-color:var(--acc)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:max(20px,env(safe-area-inset-bottom,0px));background:var(--panel2);border:1px solid var(--line);color:var(--fg);padding:9px 16px;border-radius:8px;font:600 14px var(--ui);z-index:60}
+.lib-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.empty{color:var(--mute);padding:20px;text-align:center}
+@media (max-width:1180px){.app{grid-template-columns:150px minmax(0,1fr) 300px}}
+@media (max-width:960px){
+  html,body{height:auto}
+  .app{display:flex;flex-direction:column;height:auto;gap:12px}
+  .top{margin-bottom:0}
+  .side{flex-direction:row;overflow-x:auto;padding-bottom:4px}
+  .side h2{display:none}
+  .side button{white-space:nowrap;flex:none}
+  .work,.props{overflow:visible}
+  .row2{grid-template-columns:1fr}
+  .tb{margin-left:0}
+}
+/* celular: barra inferior, controles táctiles, Montaje con el resultado arriba */
+.bnav,.tb-menu{display:none}
+@media (max-width:760px){
+  .tb{display:none}
+  .tb-menu{display:inline-flex;margin-left:auto}
+  .top{flex-wrap:nowrap;gap:8px}
+  .pname{flex:1 1 auto;min-width:0;font-size:15px;padding-inline:4px}
+  .side{display:none}
+  .bnav{display:flex;gap:4px;position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--panel);border-top:1px solid var(--line);
+    padding:6px max(10px,env(safe-area-inset-right,0px)) calc(6px + env(safe-area-inset-bottom,0px)) max(10px,env(safe-area-inset-left,0px))}
+  .bnav button{flex:1;min-width:0;background:transparent;border:0;border-radius:8px;padding:8px 2px;min-height:48px;font:600 14px/1.15 var(--ui);color:var(--mute);cursor:pointer}
+  .bnav button.on{color:var(--acc);background:var(--panel2)}
+  .app{padding-bottom:calc(80px + env(safe-area-inset-bottom,0px))}
+  .vh p{display:none}
+  input[type=number],input[type=text],select{min-height:42px;font-size:16px}
+  input[type=number]{width:96px}
+  .f select{width:180px}
+  .f input[type=range]{height:36px}
+  .btn{min-height:44px;padding:10px 14px;font-size:15px}
+  .btn.sm{min-height:40px}
+  .chip{padding:8px 12px;font-size:14px}
+  .x{min-width:40px;min-height:40px}
+  body.v-montaje .work{display:contents}
+  body.v-montaje .work>*{order:3}
+  body.v-montaje .work>.vh,body.v-montaje #warnBox,body.v-montaje #mtRes,body.v-montaje #mtTxt{order:1}
+  body.v-montaje .props{order:2}
+  #mtRes{grid-template-columns:1fr 1fr}
+  #mtRes .big.hl{grid-column:1/-1}
+  #mtRes .vel,.lead .l2{display:none}
+  #mtRes .big.hl>b{font-size:46px;line-height:1.1}
+  .modal .btnrow .btn{flex:1 1 auto}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="brand"><svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><g fill="none" stroke="var(--acc)" stroke-width="2"><path d="M4 3h9"/><path d="M4.3 7.2l8.8 1"/><path d="M5 11.6l8.4 2.2"/><path d="M6.2 16l7.6 3.6"/></g><circle cx="18" cy="11" r="1.6" fill="var(--sub)"/></svg>Tesoro PA</div>
+    <input id="pname" class="pname" type="text" data-p="meta.name" aria-label="Nombre del proyecto">
+    <div class="tb">
+      <button class="btn" data-act="new">Nuevo</button>
+      <button class="btn" data-act="open">Abrir</button>
+      <button class="btn pri" data-act="save">Guardar</button>
+      <button class="btn" data-act="export">Exportar</button>
+      <button class="btn" data-act="config">Ajustes</button>
+      <button class="btn ghost" data-act="help" aria-label="Cómo se usa">?</button>
+    </div>
+    <button class="btn tb-menu" data-act="menu" aria-haspopup="dialog">Menú</button>
+  </header>
+  <nav class="side" id="nav" aria-label="Módulos"></nav>
+  <main class="work" id="work"></main>
+  <aside class="props" id="props" aria-label="Parámetros"></aside>
+</div>
+<nav class="bnav" id="bnav" aria-label="Pantallas principales"></nav>
+<div class="modal-bg" id="modal" hidden><div class="modal" role="dialog" aria-modal="true" id="mbody"></div></div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+'use strict';
+/* MOTOR:INICIO */
+/* ================= utilidades ================= */
+const $=(s,r=document)=>r.querySelector(s);
+const $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const deg=Math.PI/180;
+const isNum=v=>typeof v==='number'&&isFinite(v);
+const fmt=(v,d=1)=>isNum(v)?v.toFixed(d).replace('.',',').replace(/^-/,'−'):'–';
+const sgn=(v,d=1)=>isNum(v)?(v>0?'+':'')+fmt(v,d):'–';
+const log10=Math.log10;
+const clone=o=>JSON.parse(JSON.stringify(o));
+const BANDS=[63,125,250,500,1000,2000,4000,8000];
+const bandLbl=b=>b>=1000?(b/1000)+' kHz':b+' Hz';
+const STEP=['#2b2d6b','#2a4aa6','#2672d2','#1c9fd6','#1bbcae','#47c86a','#a6d33d','#e7d03a','#f1932c','#e2452c'];
+const STEPRGB=STEP.map(h=>[1,3,5].map(i=>parseInt(h.substr(i,2),16)));
+const K={};
+function readK(){const cs=getComputedStyle(document.documentElement);['bg','panel','panel2','line','fg','mute','dim','acc','sub','sum','ok','warn','bad'].forEach(k=>K[k]=cs.getPropertyValue('--'+k).trim());}
+const store={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true}catch(e){return false}}};
+function toast(t){const el=$('#toast');el.textContent=t;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>el.hidden=true,2200);}
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ================= biblioteca ================= */
+const FD={act:['Caja activa (amplificada)','chk'],ctype:['Tipo de gabinete','txt'],build:['Construcción','sel',['Bass reflex','Bandpass','Horn','Cerrada','Otro']],
+fLow:['Respuesta: frecuencia baja','Hz'],fHigh:['Respuesta: frecuencia alta','Hz'],sens:['Sensibilidad 1 W / 1 m','dB'],rms:['Potencia RMS','W'],
+imp:['Impedancia','Ω'],maxSpl:['SPL máximo declarado','dB'],hCov:['Cobertura horizontal','°'],vCov:['Cobertura vertical','°'],
+maxSplay:['Ángulo máximo entre cajas','°'],xover:['Corte recomendado','Hz'],tune:['Frecuencia de sintonía','Hz'],
+w:['Ancho','m'],h:['Alto','m'],d:['Profundidad','m'],kg:['Peso','kg'],pw:['Potencia admisible','W'],minF:['Frecuencia mínima de trabajo','Hz'],
+horn:['Tipo de difusor','txt'],cov:['Ángulo de cobertura','°'],extra:['Información adicional','area']};
+const TYPES={la:{name:'Line array',f:['ctype','act','fLow','fHigh','sens','rms','imp','maxSpl','hCov','vCov','maxSplay','w','h','d','kg','extra']},
+ps:{name:'Point source',f:['ctype','act','fLow','fHigh','xover','sens','rms','imp','maxSpl','hCov','vCov','w','h','d','kg','extra']},
+sub:{name:'Subwoofer',f:['build','act','fLow','fHigh','tune','sens','rms','imp','maxSpl','w','h','d','kg','extra']},
+drv:{name:'Driver',f:['fLow','fHigh','sens','pw','imp','minF','horn','cov','extra']}};
+const REQ={la:['sens','rms','hCov','vCov','fLow','fHigh','w','h'],ps:['sens','rms','hCov','vCov','fLow','fHigh','w','h'],sub:['sens','rms','fLow','fHigh','w','h','d'],drv:[]};
+const LIB0=[
+{id:'ex-la',type:'la',brand:'Genérico',model:'Line array 10" (ejemplo)',example:true,f:{ctype:'2 vías, 2 × 10" + motor 1,4"',fLow:65,fHigh:18000,sens:98,rms:500,imp:16,maxSpl:133,hCov:100,vCov:10,maxSplay:10,w:0.62,h:0.3,d:0.45,kg:26,extra:'Valores de ejemplo para probar la app. No corresponden a un modelo real.'}},
+{id:'ex-ps',type:'ps',brand:'Genérico',model:'Caja 12" (ejemplo)',example:true,f:{act:true,ctype:'2 vías, 12" + motor 1"',fLow:55,fHigh:18000,xover:100,sens:97,rms:400,imp:8,maxSpl:128,hCov:90,vCov:60,w:0.38,h:0.62,d:0.36,kg:18,extra:'Valores de ejemplo.'}},
+{id:'ex-sub',type:'sub',brand:'Genérico',model:'Sub 18" (ejemplo)',example:true,f:{act:true,build:'Bass reflex',fLow:38,fHigh:150,tune:40,sens:98,rms:1000,imp:8,maxSpl:134,w:0.6,h:0.55,d:0.75,kg:55,extra:'Valores de ejemplo.'}},
+{id:'sts-v10',type:'la',brand:'STS',model:'V10',f:{extra:'Completá los datos con la ficha técnica.'}},
+{id:'qsc-kc12',type:'ps',brand:'QSC',model:'KC12',f:{act:true,extra:'Completá los datos con la ficha técnica.'}},
+{id:'ac-s3218a',type:'sub',brand:'Audiocenter',model:'S3218A',f:{act:true,extra:'Completá los datos con la ficha técnica.'}}];
+[['ps','Audiocenter','GT515A'],['ps','Audiocenter','GT12A'],['ps','Electro-Voice','ELX200-10P'],['ps','Electro-Voice','ETX-35P'],['ps','IDEA','EXO66-A'],['sub','Audiocenter','Pro5118A'],['sub','STS','Concerto miniSUB 600 W'],['sub','STS','Concerto miniSUB 1200 W'],['sub','Audiolab','Edge 12 Sub']]
+ .forEach(([type,brand,model])=>LIB0.push({id:(brand+'-'+model).toLowerCase().replace(/[^a-z0-9]+/g,'-'),type,brand,model,f:{act:true,extra:'Completá los datos con la ficha técnica.'}}));
+let LIB=store.get('tpa.lib',null);
+if(!LIB)LIB=clone(LIB0);else{const del=store.get('tpa.libDel',[]);LIB0.forEach(c=>{const ex=LIB.find(x=>x.id===c.id);if(!ex){if(!del.includes(c.id))LIB.push(clone(c));}else if(ex.f.act===undefined&&c.f.act)ex.f.act=true;});}
+const saveLib=()=>store.set('tpa.lib',LIB);
+const cab=id=>LIB.find(c=>c.id===id);
+const cname=c=>c?`${c.brand} ${c.model}`.trim():'–';
+const req=c=>{const r=REQ[c.type];return c.f.act?r.filter(k=>k!=='sens'&&k!=='rms').concat('maxSpl'):r;};
+const missing=c=>c?req(c).filter(k=>!isNum(c.f[k])||c.f[k]<=0).map(k=>FD[k][0].toLowerCase()):[];
+const libOf=t=>LIB.filter(c=>c.type===t);
+
+/* ================= proyecto ================= */
+function DEF(){return{v:1,meta:{name:'Demo: salón 24 × 35 m',event:'',client:'',venue:'',date:''},
+env:{temp:22,fs:48000,earH:1.6,head:6,cell:0.5},
+venue:{w:24,d:35,aud:3,stage:6,fohX:0,fohY:22},
+pa:{type:'la',cab:'ex-ps',n:1,h:2.4,tilt:0},mt:{ref:'foh',auto:true,route:'chain'},
+dist:{ref:'pa',behind:3,offset:5,auto:true,gen:{cab:'ex-ps',n:4,y0:12,step:8,pos:'both',z:2.8}},
+la:{cab:'ex-la',n:6,rigH:7,site:7,splay:[1,2,3,4,6],x:6,y:0,toe:0,band:1000},
+subs:{on:true,cab:'ex-sub',cfg:'lr',n:4,y:0.5,s:1.2,dsep:0.9,loc:'center',row:2,f:63,mode:'band',list:[]},
+xo:{fc:100,hp:'LR24',lp:'LR24',topDelay:0,subDelay:0,topPol:1,subPol:1,subGain:0,refX:0,refD:15},
+ps:[],
+map:{band:1000,show:'all',mode:'band',scale:'auto',ref:110,lp:{x:-4,y:15}},
+dl:{main:{x:-6,y:0,z:6},sec:{x:-6,y:24,z:5},ref:{x:-6,y:32,z:1.6},offset:5}};}
+function DEMO2(){const d=DEF();d.meta.name='Demo: exterior 40 × 60 m con torres';
+Object.assign(d.venue,{w:40,d:60,aud:4,stage:10,fohX:0,fohY:30});Object.assign(d.la,{n:6,rigH:9,site:6,splay:[1,1.5,2,3,5],x:9});
+Object.assign(d.subs,{cfg:'cardioid',n:8,loc:'center',y:0.6});d.xo.refD=22;
+d.ps=[{role:'Torre de delay',cab:'ex-ps',x:-9,y:30,z:5,yaw:0,tilt:5,gain:-2,delay:0,pol:1,refD:12},{role:'Torre de delay',cab:'ex-ps',x:9,y:30,z:5,yaw:0,tilt:5,gain:-2,delay:0,pol:1,refD:12}];
+d.dist.behind=8;return d;}
+function merge(def,o){if(!o||typeof o!=='object')return def;const out=Array.isArray(def)?(Array.isArray(o)?o:def):{...def};
+ if(Array.isArray(def))return out;for(const k in o){if(def[k]&&typeof def[k]==='object'&&!Array.isArray(def[k])&&o[k]&&typeof o[k]==='object'&&!Array.isArray(o[k]))out[k]=merge(def[k],o[k]);else out[k]=o[k];}return out;}
+let S=merge(DEF(),store.get('tpa.cur',null));
+while(S.la.splay.length<5)S.la.splay.push(0);
+let view='montaje',libSel=null,libFilter='all',MAP=null,SUBMAP=null;
+
+const get=p=>p.split('.').reduce((o,k)=>o==null?o:o[k],S);
+function set(p,v){const ks=p.split('.');const last=ks.pop();const o=ks.reduce((o,k)=>o[k],S);o[last]=v;}
+
+/* ================= motor acústico ================= */
+const C=()=>331.3+0.606*S.env.temp;
+const AIRT=[[63,.0001],[125,.0004],[250,.0011],[500,.0024],[1000,.0048],[2000,.0094],[4000,.0228],[8000,.0765],[16000,.26]];
+function airDb(f){if(f<=63)return .0001*f/63;for(let i=1;i<AIRT.length;i++){const[f1,a1]=AIRT[i];if(f<=f1){const[f0,a0]=AIRT[i-1];const t=Math.log(f/f0)/Math.log(f1/f0);return Math.exp(Math.log(a0)+t*Math.log(a1/a0));}}return .26;}
+const cm=(a,b)=>[a[0]*b[0]-a[1]*b[1],a[0]*b[1]+a[1]*b[0]];
+const POLES={};for(let n=1;n<=8;n++){POLES[n]=[];for(let k=1;k<=n;k++){const a=Math.PI*(2*k+n-1)/(2*n);POLES[n].push([Math.cos(a),Math.sin(a)]);}}
+function bwf(n,fc,f,hp){const w=f/fc;let re=1,im=0;for(const[pr,pi]of POLES[n]){const ar=-pr,ai=w-pi;const nr=re*ar-im*ai,ni=re*ai+im*ar;re=nr;im=ni;}
+ let nr=1,ni=0;if(hp){const m=Math.pow(w,n),ph=n*Math.PI/2;nr=m*Math.cos(ph);ni=m*Math.sin(ph);}const d=re*re+im*im;return[(nr*re+ni*im)/d,(ni*re-nr*im)/d];}
+const FILT={BW12:[2,1],BW18:[3,1],BW24:[4,1],LR12:[1,2],LR24:[2,2],LR48:[4,2]};
+const FILTNAMES=[['LR24','Linkwitz-Riley 24 dB/oct'],['LR48','Linkwitz-Riley 48 dB/oct'],['LR12','Linkwitz-Riley 12 dB/oct'],['BW12','Butterworth 12 dB/oct'],['BW18','Butterworth 18 dB/oct'],['BW24','Butterworth 24 dB/oct'],['none','Sin filtro']];
+function filt(t,fc,f,hp){if(!t||t==='none'||!isNum(fc)||fc<=0)return[1,0];const m=FILT[t];if(!m)return[1,0];let r=bwf(m[0],fc,f,hp);if(m[1]===2)r=cm(r,r);return r;}
+function pist(f,size){if(!isNum(size)||size<=0)return 360;const x=0.6*C()/(f*size);return x<1?2*Math.asin(x)/deg:180+180*(1-1/x);}
+function attDb(t,bw){if(bw>=359)return 0;const h=bw/2;const a=-6*(t/h)*(t/h);return a<-25?-25:a;}
+function spl1m(c){if(c.f.act)return c.f.maxSpl-6-S.env.head;let L=c.f.sens+10*log10(c.f.rms)-S.env.head;if(isNum(c.f.maxSpl)&&c.f.maxSpl>0)L=Math.min(L,c.f.maxSpl);return L;}
+function laBoxes(la,c){const h=c.f.h,out=[];let a=la.site*deg,T=[0,la.rigH];
+ for(let i=0;i<la.n;i++){if(i>0)a+=(la.splay[i-1]||0)*deg;const B=[T[0]-h*Math.sin(a),T[1]-h*Math.cos(a)];out.push({T,B,a,c:[(T[0]+B[0])/2,(T[1]+B[1])/2]});T=B;}return out;}
+function laCenter(side,c){const bx=laBoxes(S.la,c);const u=bx.reduce((s,b)=>s+b.c[0],0)/bx.length,z=bx.reduce((s,b)=>s+b.c[1],0)/bx.length;
+ const sx=side==='L'?-1:1,yaw=-sx*S.la.toe*deg;return{x:sx*S.la.x+u*Math.sin(yaw),y:S.la.y+u*Math.cos(yaw),z};}
+function topsCab(){return S.pa.type==='la'?cab(S.la.cab):S.pa.type==='ps'?cab(S.pa.cab):null;}
+const topsReady=()=>{const c=topsCab();return!!c&&!missing(c).length;};
+function topCenters(){const c=topsCab();if(!c)return[];if(S.pa.type==='la'&&isNum(c.f.h)&&c.f.h>0)return['L','R'].map(s=>laCenter(s,c));const z=S.pa.type==='la'?S.la.rigH:S.pa.h;return[-1,1].map(sx=>({x:sx*S.la.x,y:S.la.y,z}));}
+function grpResp(g,f){const c=g.c.f;let r=[Math.pow(10,(g.gain||0)/20)*(g.pol||1),0];
+ if(g.kind==='sub'){r=cm(r,filt(c.build==='Cerrada'?'BW12':'BW24',c.fLow,f,true));r=cm(r,filt('BW12',c.fHigh,f,false));r=cm(r,filt(g.lp,S.xo.fc,f,false));}
+ else{r=cm(r,filt('BW12',c.fLow,f,true));r=cm(r,filt('BW12',c.fHigh,f,false));r=cm(r,filt(g.hp,S.xo.fc,f,true));}
+ if(g.delay){const ph=-2*Math.PI*f*g.delay;r=cm(r,[Math.cos(ph),Math.sin(ph)]);}return r;}
+function subsReady(list){const sc=cab(S.subs.cab);return S.subs.on&&(list||S.subs.list).length>0&&sc&&!missing(sc).length;}
+function buildModel(o={}){const M=o.M||3,src=[],groups=[],warn=[];const list=o.list||S.subs.list;const hp=subsReady(list)?S.xo.hp:'none';
+ if(o.tops!==false&&S.pa.type==='ps'){const c=cab(S.pa.cab);
+  if(!c)warn.push('Elegí un modelo de caja para el PA.');
+  else if(missing(c).length)warn.push(`${cname(c)} no tiene todos los datos (${missing(c).join(', ')}). Completalos en la biblioteca para incluir el PA.`);
+  else{const g=groups.push({kind:'top',c,hp,delay:S.xo.topDelay/1000,pol:S.xo.topPol,gain:0,nh:c.f.hCov,nv:c.f.vCov,sw:c.f.w,sh:c.f.h})-1;const amp=Math.pow(10,spl1m(c)/20);
+   for(const side of(o.sides||['L','R'])){const sx=side==='L'?-1:1,yaw=-sx*S.la.toe*deg,sy=Math.sin(yaw),cy=Math.cos(yaw);
+    for(let k=0;k<S.pa.n;k++){const off=(k-(S.pa.n-1)/2)*c.f.w;src.push({x:sx*S.la.x+off*cy,y:S.la.y-off*sy,z:S.pa.h,sy,cy,pd:S.pa.tilt,amp,pol:1,delay:0,g,kind:'top'});}}}}
+ else if(o.tops!==false&&S.pa.type==='la'){const lc=cab(S.la.cab);
+  if(!lc)warn.push('Elegí un modelo de line array.');
+  else if(missing(lc).length)warn.push(`${cname(lc)} no tiene todos los datos (${missing(lc).join(', ')}). Completalos en la biblioteca para incluir el line array.`);
+  else{const g=groups.push({kind:'top',c:lc,hp,delay:S.xo.topDelay/1000,pol:S.xo.topPol,gain:0,nh:lc.f.hCov,nv:lc.f.vCov,sw:lc.f.w,sh:lc.f.h})-1;
+   const bx=laBoxes(S.la,lc),amp=Math.pow(10,spl1m(lc)/20)/M;
+   for(const side of(o.sides||['L','R'])){const sx=side==='L'?-1:1,yaw=-sx*S.la.toe*deg,X=sx*S.la.x,Y=S.la.y,sy=Math.sin(yaw),cy=Math.cos(yaw);
+    for(const b of bx)for(let k=0;k<M;k++){const t=(k+.5)/M,u=b.T[0]+(b.B[0]-b.T[0])*t,z=b.T[1]+(b.B[1]-b.T[1])*t;
+     src.push({x:X+u*sy,y:Y+u*cy,z,sy,cy,pd:b.a/deg,amp,pol:1,delay:0,g,kind:'top'});}}}}
+ if(o.subs!==false&&S.subs.on&&list.length){const sc=cab(S.subs.cab);
+  if(!sc)warn.push('Elegí un modelo de sub.');
+  else if(missing(sc).length)warn.push(`${cname(sc)} no tiene todos los datos (${missing(sc).join(', ')}). Completalos para incluir los subs.`);
+  else{const g=groups.push({kind:'sub',c:sc,lp:S.xo.lp,delay:S.xo.subDelay/1000,pol:S.xo.subPol,gain:S.xo.subGain,nh:0,nv:0,sw:sc.f.w,sh:sc.f.h})-1;const base=Math.pow(10,spl1m(sc)/20);
+   for(const s of list){const yaw=(+s.ang||0)*deg;src.push({x:s.x,y:s.y,z:s.z,sy:Math.sin(yaw),cy:Math.cos(yaw),pd:0,amp:base*Math.pow(10,(s.gain||0)/20),pol:+s.pol||1,delay:(s.delay||0)/1000,g,kind:'sub'});}}}
+ if(o.ps!==false)S.ps.forEach((p,i)=>{const c=cab(p.cab);if(!c){warn.push(`Fuente ${i+1}: elegí un modelo.`);return;}
+  if(missing(c).length){warn.push(`${cname(c)} (fuente ${i+1}) no tiene todos los datos (${missing(c).join(', ')}).`);return;}
+  const g=groups.push({kind:'ps',c,hp,delay:0,pol:1,gain:0,nh:c.f.hCov,nv:c.f.vCov,sw:c.f.w,sh:c.f.h})-1;const yaw=p.yaw*deg;
+  src.push({x:p.x,y:p.y,z:p.z,sy:Math.sin(yaw),cy:Math.cos(yaw),pd:p.tilt,amp:Math.pow(10,(spl1m(c)+p.gain)/20),pol:p.pol,delay:p.delay/1000,g,kind:'ps'});});
+ return{src,groups,warn};}
+function prep(md,f){return{k:2*Math.PI*f/C(),w:2*Math.PI*f,air:airDb(f),P:md.groups.map(g=>{const r=grpResp(g,f);return{re:r[0],im:r[1],bwH:Math.max(g.nh||0,pist(f,g.sw)),bwV:Math.max(g.nv||0,pist(f,g.sh))};})};}
+function pAt(x,y,z,md,pp){let re=0,im=0;const L=md.src;
+ for(let i=0;i<L.length;i++){const s=L[i],P=pp.P[s.g];const dx=x-s.x,dy=y-s.y,dz=z-s.z;
+  const fwd=dx*s.sy+dy*s.cy,side=dx*s.cy-dy*s.sy;const rh=Math.sqrt(dx*dx+dy*dy);let r=Math.sqrt(rh*rh+dz*dz);if(r<0.3)r=0.3;
+  const th=Math.abs(Math.atan2(side,fwd))/deg;let att=attDb(th,P.bwH);
+  if(th<90)att+=attDb(Math.abs(Math.atan2(dz,rh)/deg+s.pd),P.bwV);
+  const a=s.amp*s.pol*Math.exp(0.115129*(att-pp.air*r))/r;const ph=-pp.k*r-pp.w*s.delay;const ar=a*Math.cos(ph),ai=a*Math.sin(ph);
+  re+=ar*P.re-ai*P.im;im+=ar*P.im+ai*P.re;}
+ return[re,im];}
+const bandFreqs=(b,mode)=>mode==='freq'?[b]:[-2,-1,0,1,2].map(i=>b*Math.pow(2,i/12));
+function energyAt(x,y,z,md,freqs,pps){let e=0;freqs.forEach((f,i)=>{const p=pAt(x,y,z,md,pps?pps[i]:prep(md,f));e+=p[0]*p[0]+p[1]*p[1];});return 10*log10(e/freqs.length+1e-12);}
+function gridE(md,pts,freqs){const E=new Float32Array(pts.length/3);for(const f of freqs){const pp=prep(md,f);for(let i=0,j=0;i<pts.length;i+=3,j++){const p=pAt(pts[i],pts[i+1],pts[i+2],md,pp);E[j]+=p[0]*p[0]+p[1]*p[1];}}
+ for(let j=0;j<E.length;j++)E[j]=10*log10(E[j]/freqs.length+1e-12);return E;}
+const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z);
+
+/* ================= subs ================= */
+function genSubs(sb){const c=cab(sb.cab);const w=c&&isNum(c.f.w)?c.f.w:0.6,h=c&&isNum(c.f.h)?c.f.h:0.55;const n=sb.n,L=[],c0=C();
+ const add=(x,y,z,ang,delay,pol)=>L.push({x:+x.toFixed(2),y:+y.toFixed(2),z:+z.toFixed(2),ang,delay:+delay.toFixed(2),pol,gain:0});
+ const groupXs=(cnt)=>{if(sb.loc==='lr'){const l=Math.ceil(cnt/2),r=cnt-l,xs=[];for(const[m,sx]of[[l,-1],[r,1]])for(let i=0;i<m;i++)xs.push(sx*S.la.x+(i-(m-1)/2)*w);return xs;}return Array.from({length:cnt},(_,i)=>(i-(cnt-1)/2)*w);};
+ switch(sb.cfg){
+  case'lr':{const per=Math.ceil(n/2);for(const sx of[-1,1])for(let k=0;k<per&&L.length<n;k++)add(sx*S.la.x,sb.y,h/2+k*h,0,0,1);break;}
+  case'central':{const cols=n<=4?n:Math.ceil(n/2);for(let i=0;i<n;i++){const col=i%cols,row=Math.floor(i/cols);add((col-(cols-1)/2)*w,sb.y,h/2+row*h,0,0,1);}break;}
+  case'linea':for(let i=0;i<n;i++)add((i-(n-1)/2)*sb.s,sb.y,h/2,0,0,1);break;
+  case'cardioid':{const pairs=Math.max(1,Math.floor(n/2));for(const x of groupXs(pairs)){add(x,sb.y,h/2,0,0,1);add(x,sb.y-sb.dsep,h/2,180,sb.dsep/c0*1000,-1);}break;}
+  case'endfire':{const k=Math.max(2,sb.row);const cols=Math.max(1,Math.floor(n/k));for(const x of groupXs(cols))for(let j=0;j<k;j++)add(x,sb.y-j*sb.dsep,h/2,0,(k-1-j)*sb.dsep/c0*1000,1);break;}
+  default:return sb.list;}
+ return L;}
+const CFGS=[['lr','Pares L/R'],['central','Central agrupada'],['linea','En línea'],['cardioid','Cardioide'],['endfire','End-fire'],['custom','Personalizada']];
+if(!S.subs.list.length&&S.subs.cfg!=='custom')S.subs.list=genSubs(S.subs);
+
+/* ---- alineación y delays ---- */
+function refPoint(){const v=S.venue,m=S.mt.ref,z=S.env.earH;if(m==='foh')return{x:v.fohX,y:v.fohY,z,n:`el FOH (${fmt(v.fohY,1)} m)`};
+ if(m==='mid'){const y=(v.aud+v.d)/2;return{x:0,y,z,n:`la mitad del público (${fmt(y,1)} m)`};}return{x:S.xo.refX,y:S.xo.refD,z,n:`el punto a ${fmt(S.xo.refD,1)} m`};}
+function geoAt(R){const tc=topCenters();if(!tc.length)return null;const dT=tc.reduce((s,p)=>s+dist(p,R),0)/tc.length;const fl=S.subs.list.filter(s=>+s.ang!==180);const L=fl.length?fl:S.subs.list;
+ if(!S.subs.on||!L.length)return{dT};const c=C();const dS=L.reduce((s,a)=>s+dist(a,R)+(a.delay||0)/1000*c,0)/L.length;return{dT,dS,ms:(dT-dS)/c*1000};}
+function knobFor(ms,fc){const L=((ms*fc*0.36)%360+360)%360;let k,err;if(L<=180){k=L;err=0;}else if(L<270){k=180;err=L-180;}else{k=0;err=360-L;}return{k:Math.round(k),err:Math.round(err),L:Math.round(L)};}
+const SUBLOC={lr:'debajo de cada lado',central:'al centro',linea:'en línea',cardioid:'en cardioide',endfire:'en end-fire',custom:'en posición personalizada'};
+function rigDesc(){const t=S.pa.type;const pa=t==='la'?`${S.la.n} × ${cname(cab(S.la.cab))} por lado a ${fmt(S.la.rigH,1)} m`:t==='ps'?`${S.pa.n} × ${cname(cab(S.pa.cab))} por lado a ${fmt(S.pa.h,1)} m`:'Sin PA';return pa+(S.subs.on?`, ${S.subs.list.length} subs ${SUBLOC[S.subs.cfg]}`:'');}
+function syncAuto(){if(!S.mt.auto||S.pa.type==='none'||!S.subs.on||!S.subs.list.length)return;const R=refPoint();if(S.mt.ref!=='custom'){S.xo.refD=R.y;S.xo.refX=R.x;}
+ const g=geoAt(R);if(!g||!isNum(g.ms))return;const r=+g.ms.toFixed(2);if(r>=0){S.xo.subDelay=r;S.xo.topDelay=0;}else{S.xo.topDelay=-r;S.xo.subDelay=0;}S.xo.subPol=1;}
+function distInfo(i){const p=S.ps[i];const yaw=p.yaw*deg;const R={x:p.x+S.dist.behind*Math.sin(yaw),y:p.y+S.dist.behind*Math.cos(yaw),z:S.env.earH};const dSec=dist(p,R);
+ const first=S.dist.ref==='first'||S.pa.type==='none';let mains;
+ if(first){const y0=Math.min(...S.ps.map(q=>q.y));const row=S.ps.filter(q=>q.y<=y0+0.5);if(p.y<=y0+0.5)return{ms:0,raw:0,dMain:dSec,dSec,ref:true};mains=row;}else{mains=topCenters();if(!mains.length)return null;}
+ const dMain=Math.min(...mains.map(m=>dist(m,R)));const raw=(dMain-dSec)/C()*1000+S.dist.offset;return{ms:Math.max(0,raw),raw,dMain,dSec};}
+function syncDist(){if(!S.dist.auto)return;S.ps.forEach((p,i)=>{const d=distInfo(i);if(d)p.delay=+d.ms.toFixed(2);});}
+function phaseOpt(R){if(!topsReady()||!subsReady())return null;const sv=[S.xo.subDelay,S.xo.topDelay,S.xo.subPol];S.xo.subDelay=0;S.xo.topDelay=0;S.xo.subPol=1;
+ const mt=buildModel({subs:false,ps:false}),ms=buildModel({tops:false,ps:false});[S.xo.subDelay,S.xo.topDelay,S.xo.subPol]=sv;
+ const fs=[];for(let i=0;i<24;i++)fs.push(S.xo.fc*Math.pow(2,-0.5+1.5*i/23));
+ const T=fs.map(f=>pAt(R.x,R.y,R.z,mt,prep(mt,f))),Sb=fs.map(f=>pAt(R.x,R.y,R.z,ms,prep(ms,f)));const gg=geoAt(R);const geo=gg&&isNum(gg.ms)?gg.ms:0;const cand=[];
+ for(const pol of[1,-1])for(let d=-20;d<=20.0001;d+=0.05){let e=0;fs.forEach((f,i)=>{const ph=-2*Math.PI*f*d/1000,c=Math.cos(ph),s=Math.sin(ph);const sr=pol*(Sb[i][0]*c-Sb[i][1]*s),si=pol*(Sb[i][0]*s+Sb[i][1]*c);const a=T[i][0]+sr,b=T[i][1]+si;e+=a*a+b*b;});cand.push({pol,d,e});}
+ const best=Math.max(...cand.map(c=>c.e));const ok=cand.filter(c=>10*log10(c.e/best)>-0.25);ok.sort((a,b)=>(Math.abs(a.d-geo)+(a.pol<0?0.3:0))-(Math.abs(b.d-geo)+(b.pol<0?0.3:0)));return{d:+ok[0].d.toFixed(2),pol:ok[0].pol};}
+function applyD(c){S.xo.subPol=c.pol;if(c.d>=0){S.xo.subDelay=c.d;S.xo.topDelay=0;}else{S.xo.topDelay=-c.d;S.xo.subDelay=0;}}
+/* MOTOR:FIN */
+
+/* ================= canvas ================= */
+function cv(id){const c=document.getElementById(id);if(!c)return null;const r=c.getBoundingClientRect();const d=window.devicePixelRatio||1;const w=Math.max(10,r.width),h=Math.max(10,r.height);
+ if(c.width!==Math.round(w*d)||c.height!==Math.round(h*d)){c.width=Math.round(w*d);c.height=Math.round(h*d);}const ctx=c.getContext('2d');ctx.setTransform(d,0,0,d,0,0);ctx.clearRect(0,0,w,h);return{c,ctx,w,h};}
+function font(ctx,sz=12,wt=500){ctx.font=`${wt} ${sz}px 'Barlow Semi Condensed','Arial Narrow',sans-serif`;}
+function blank(id,msg){const g=cv(id);if(!g)return;font(g.ctx,15);g.ctx.fillStyle=K.mute;g.ctx.textAlign='center';g.ctx.fillText(msg,g.w/2,g.h/2);g.ctx.textAlign='left';}
+function frame(g,o){const{ctx,w,h}=g;const pl=o.pl??46,pr=o.pr??14,pt=o.pt??14,pb=o.pb??28;const iw=w-pl-pr,ih=h-pt-pb;
+ const X=o.log?v=>pl+iw*Math.log(v/o.x0)/Math.log(o.x1/o.x0):v=>pl+iw*(v-o.x0)/(o.x1-o.x0);const Y=v=>pt+ih*(1-(v-o.y0)/(o.y1-o.y0));
+ ctx.lineWidth=1;font(ctx,12);ctx.textBaseline='middle';
+ for(const t of o.yt){const y=Math.round(Y(t))+.5;ctx.strokeStyle=K.line;ctx.globalAlpha=.7;ctx.beginPath();ctx.moveTo(pl,y);ctx.lineTo(w-pr,y);ctx.stroke();ctx.globalAlpha=1;ctx.fillStyle=K.mute;ctx.textAlign='right';ctx.fillText(o.yf?o.yf(t):t,pl-6,y);}
+ ctx.textAlign='center';ctx.textBaseline='top';
+ for(const t of o.xt){const x=Math.round(X(t))+.5;ctx.strokeStyle=K.line;ctx.globalAlpha=.5;ctx.beginPath();ctx.moveTo(x,pt);ctx.lineTo(x,h-pb);ctx.stroke();ctx.globalAlpha=1;ctx.fillStyle=K.mute;ctx.fillText(o.xf?o.xf(t):t,x,h-pb+6);}
+ ctx.textAlign='left';ctx.textBaseline='alphabetic';if(o.yl){ctx.save();ctx.translate(12,pt+ih/2);ctx.rotate(-Math.PI/2);ctx.textAlign='center';ctx.fillStyle=K.dim;ctx.fillText(o.yl,0,0);ctx.restore();}
+ return{X,Y,pl,pr,pt,pb,iw,ih};}
+function line(ctx,xs,ys,color,wd=2,dash){ctx.strokeStyle=color;ctx.lineWidth=wd;ctx.setLineDash(dash||[]);ctx.beginPath();let st=false;for(let i=0;i<xs.length;i++){if(!isFinite(ys[i])){st=false;continue;}st?ctx.lineTo(xs[i],ys[i]):ctx.moveTo(xs[i],ys[i]);st=true;}ctx.stroke();ctx.setLineDash([]);}
+function heatImg(E,nx,ny,top){const oc=document.createElement('canvas');oc.width=nx;oc.height=ny;const x=oc.getContext('2d');const id=x.createImageData(nx,ny);
+ for(let j=0;j<E.length;j++){const v=E[j];let k=9+Math.ceil((v-top)/3);let a=255;if(k>9)k=9;if(k<0){k=0;a=70;}const c=STEPRGB[k],o=j*4;id.data[o]=c[0];id.data[o+1]=c[1];id.data[o+2]=c[2];id.data[o+3]=a;}
+ x.putImageData(id,0,0);return oc;}
+function legend(ctx,x,y,top,h=200,abs=true){const n=10,bh=h/n;font(ctx,11.5);ctx.textBaseline='middle';
+ for(let i=0;i<n;i++){ctx.fillStyle=STEP[9-i];ctx.fillRect(x,y+i*bh,14,bh-1);ctx.fillStyle=K.mute;ctx.fillText(abs?fmt(top-3*i,0):(i?'−'+3*i:'0'),x+19,y+i*bh+2);}
+ ctx.fillStyle=K.dim;ctx.fillText(abs?'dB SPL':'dB rel.',x,y-10);ctx.textBaseline='alphabetic';}
+function topTf(w,h,xr,yr,padL=20,padR=20,padT=20,padB=20){const s=Math.min((w-padL-padR)/(xr[1]-xr[0]),(h-padT-padB)/(yr[1]-yr[0]));const ox=padL+((w-padL-padR)-s*(xr[1]-xr[0]))/2,oy=padT+((h-padT-padB)-s*(yr[1]-yr[0]))/2;
+ return{s,X:x=>ox+(x-xr[0])*s,Y:y=>oy+(y-yr[0])*s,ix:X=>(X-ox)/s+xr[0],iy:Y=>(Y-oy)/s+yr[0]};}
+function polar(ctx,cx,cy,R,vals,color,o={}){const rng=o.rng||30;ctx.lineWidth=1;
+ if(!o.noGrid){for(let r=0;r<=rng;r+=6){ctx.strokeStyle=K.line;ctx.beginPath();ctx.arc(cx,cy,R*(1-r/rng),0,7);ctx.stroke();}
+  for(let a=0;a<360;a+=30){ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+R*Math.sin(a*deg),cy-R*Math.cos(a*deg));ctx.stroke();}
+  if(o.labels){font(ctx,11);ctx.fillStyle=K.dim;for(let r=6;r<rng;r+=6)ctx.fillText('−'+r,cx+3,cy-R*(1-r/rng)+11);}}
+ ctx.beginPath();vals.forEach((v,i)=>{const a=i*360/vals.length*deg;const rr=R*Math.max(0,1+Math.max(v,-rng)/rng);const x=cx+rr*Math.sin(a),y=cy-rr*Math.cos(a);i?ctx.lineTo(x,y):ctx.moveTo(x,y);});
+ ctx.closePath();ctx.fillStyle=color;ctx.globalAlpha=.18;ctx.fill();ctx.globalAlpha=1;ctx.strokeStyle=color;ctx.lineWidth=2;ctx.stroke();}
+function warnHTML(list,err){return list.length?`<div class="note${err?' err':''}">${list.map(t=>`<p>${esc(t)}</p>`).join('')}${err?'<button class="btn sm" data-view="lib">Ir a la biblioteca</button>':''}</div>`:'';}
+const HOW=`<details class="how"><summary>Cómo calcula esta predicción</summary>
+<p>Cada caja se representa con varias fuentes puntuales repartidas en su frente. Su directividad sale de la cobertura nominal y del tamaño de la caja, así que se abre en graves y se cierra en agudos. Todas las fuentes se suman con fase (suma compleja), con los filtros de cruce y la respuesta natural de cada caja modelados como filtros teóricos, más absorción del aire. En modo banda se promedia la energía en 1/3 de octava.</p>
+<p>No incluye reflexiones del piso ni del recinto, viento, gradientes de temperatura ni diagramas polares medidos por el fabricante. Sirve para comparar opciones y llegar al evento con un punto de partida. No es una medición ni una simulación certificada: el ajuste final se hace midiendo.</p></details>`;
+const badge=`<span class="badge"><i></i>Predicción simplificada, verificar midiendo</span>`;
+
+/* ================= campos ================= */
+const idOf=p=>'f-'+p.replace(/\./g,'-');
+const HLP=h=>h?`<small class="help">${h}</small>`:'';
+function NUM(l,p,o={}){const v=get(p);return`<div class="f"><label for="${idOf(p)}">${l}</label><div class="rw"><input type="number" id="${idOf(p)}" data-p="${p}" value="${v}" step="${o.st??0.1}"${o.mn!=null?` min="${o.mn}"`:''}${o.mx!=null?` max="${o.mx}"`:''}><em>${o.u||''}</em></div>${HLP(o.h)}</div>`;}
+function RNG(l,p,o={}){const v=get(p);return`<div class="f"><label for="${idOf(p)}">${l}</label><div class="rw"><input type="number" id="${idOf(p)}" data-p="${p}" value="${v}" step="${o.st??0.1}" min="${o.mn}" max="${o.mx}"><em>${o.u||''}</em></div><input type="range" aria-label="${l}" data-p="${p}" value="${v}" step="${o.st??0.1}" min="${o.mn}" max="${o.mx}">${HLP(o.h)}</div>`;}
+function SEL(l,p,opts,o={}){const v=get(p);return`<div class="f"><label for="${idOf(p)}">${l}</label><select id="${idOf(p)}" data-p="${p}"${o.rb?' data-rb':''}${o.num?' data-num':''}>${opts.map(([val,t])=>`<option value="${val}"${String(val)===String(v)?' selected':''}>${esc(t)}</option>`).join('')}</select>${HLP(o.h)}</div>`;}
+function CHK(l,p,o={}){return`<div class="f"><label for="${idOf(p)}">${l}</label><input type="checkbox" id="${idOf(p)}" data-p="${p}"${get(p)?' checked':''}${o.rb?' data-rb':''}>${HLP(o.h)}</div>`;}
+function CHIPS(p,list){const v=get(p);return`<div class="chips">${list.map(b=>`<button class="chip${b===v?' on':''}" data-set="${p}" data-v="${b}">${bandLbl(b)}</button>`).join('')}</div>`;}
+const cabOpts=t=>{const l=libOf(t).map(c=>[c.id,cname(c)+(missing(c).length?' (incompleta)':'')]);return l.length?l:[['','Sin cajas de este tipo']];};
+const POL=[[1,'Normal'],[-1,'Invertida']];
+
+/* ================= vistas ================= */
+const VIEWS=[{id:'montaje',g:'Armado',n:'Montaje'},{id:'dist',g:'Armado',n:'Cajas distribuidas'},{id:'map',g:'Armado',n:'Mapa de cobertura'},
+{id:'la',g:'Avanzado',n:'Ángulos del line array'},{id:'subs',g:'Avanzado',n:'Configuración de subs'},{id:'align',g:'Avanzado',n:'Fase PA + sub'},
+{id:'calc',g:'Herramientas',n:'Calculadora rápida'},{id:'lib',g:'Herramientas',n:'Biblioteca de cajas'}];
+function renderNav(){let g='',h='';for(const v of VIEWS){if(v.g!==g){g=v.g;h+=`<h2>${g}</h2>`;}h+=`<button data-view="${v.id}" class="${v.id===view?'on':''}"${v.id===view?' aria-current="page"':''}>${v.n}</button>`;}$('#nav').innerHTML=h;
+ const main=[['montaje','Montaje'],['dist','Cajas'],['map','Mapa']];
+ $('#bnav').innerHTML=main.map(([id,n])=>`<button data-view="${id}" class="${id===view?'on':''}"${id===view?' aria-current="page"':''}>${n}</button>`).join('')+`<button data-act="more" class="${main.some(m=>m[0]===view)?'':'on'}">Más</button>`;}
+const WORK={},PROPS={},UPD={};
+
+/* ---- Montaje ---- */
+function drawPlan(ctx,ox,ww,h,R,o={}){const v=S.venue,st=Math.min(v.stage,5);const t=topTf(ww,h,[-v.w/2-1,v.w/2+1],[-st,v.d+1],16,16,30,14);const X=x=>ox+t.X(x),Y=t.Y;
+ font(ctx,12.5,600);ctx.fillStyle=K.fg;ctx.fillText('Planta',ox+12,18);
+ ctx.fillStyle=K.panel2;ctx.fillRect(X(-v.w/2),Y(-st),v.w*t.s,st*t.s);ctx.strokeStyle=K.dim;ctx.lineWidth=1;ctx.strokeRect(X(-v.w/2),Y(-st),v.w*t.s,(v.d+st)*t.s);
+ ctx.setLineDash([4,4]);ctx.strokeStyle=K.mute;ctx.globalAlpha=.5;ctx.strokeRect(X(-v.w/2),Y(v.aud),v.w*t.s,(v.d-v.aud)*t.s);ctx.setLineDash([]);ctx.globalAlpha=1;
+ font(ctx,11);ctx.fillStyle=K.mute;ctx.fillText('Escenario',X(-v.w/2)+5,Y(-st)+13);
+ ctx.strokeStyle=K.fg;ctx.strokeRect(X(v.fohX-1.2),Y(v.fohY-0.8),2.4*t.s,1.6*t.s);ctx.fillStyle=K.fg;ctx.fillText('FOH',X(v.fohX+1.2)+4,Y(v.fohY)+4);
+ const tc=S.pa.type==='none'?[]:topCenters();const fl=S.subs.on?S.subs.list:[];
+ if(R){ctx.setLineDash([5,4]);ctx.lineWidth=1.2;tc.forEach(p=>{ctx.strokeStyle=K.acc;ctx.beginPath();ctx.moveTo(X(p.x),Y(p.y));ctx.lineTo(X(R.x),Y(R.y));ctx.stroke();});
+  fl.filter(s=>+s.ang!==180).forEach(s=>{ctx.strokeStyle=K.sub;ctx.globalAlpha=.7;ctx.beginPath();ctx.moveTo(X(s.x),Y(s.y));ctx.lineTo(X(R.x),Y(R.y));ctx.stroke();ctx.globalAlpha=1;});ctx.setLineDash([]);ctx.lineWidth=1;}
+ tc.forEach(p=>{ctx.fillStyle=K.acc;ctx.fillRect(X(p.x)-6,Y(p.y)-4,12,8);});
+ fl.forEach(s=>{const r=Math.max(3,0.28*t.s);ctx.fillStyle=K.sub;ctx.fillRect(X(s.x)-r,Y(s.y)-r,2*r,2*r);});
+ S.ps.forEach((p,i)=>{const a=p.yaw*deg;ctx.save();ctx.translate(X(p.x),Y(p.y));ctx.rotate(-a);ctx.fillStyle=K.sum;ctx.beginPath();ctx.moveTo(0,8);ctx.lineTo(-6,-4);ctx.lineTo(6,-4);ctx.closePath();ctx.fill();ctx.restore();
+  if(o.labels){font(ctx,12,600);const lab=`${i+1}: ${fmt(p.delay,1)} ms`;const tw=ctx.measureText(lab).width;const lx=p.x>0.5?X(p.x)-tw-11:X(p.x)+11;ctx.fillStyle=K.panel;ctx.globalAlpha=.85;ctx.fillRect(lx-3,Y(p.y)-9,tw+6,17);ctx.globalAlpha=1;ctx.fillStyle=K.fg;ctx.fillText(lab,lx,Y(p.y)+4);}});
+ if(R){ctx.fillStyle=K.fg;ctx.beginPath();ctx.arc(X(R.x),Y(R.y),5,0,7);ctx.fill();}
+ return t;}
+function drawSide(ctx,ox,ww,h,R){const tc=S.pa.type==='none'?[]:topCenters();const subs=S.subs.on?S.subs.list:[];const c=topsCab();
+ const zt=tc.length?Math.max(...tc.map(p=>p.z)):3;const y0=Math.min(-2,S.la.y-1,...subs.map(s=>s.y-1)),y1=Math.max(R.y+2,8),z1=Math.max(zt+1.5,4);
+ const s=Math.min((ww-50)/(y1-y0),(h-60)/z1);const PX=y=>ox+24+(y-y0)*s,PY=z=>h-26-z*s;
+ font(ctx,12.5,600);ctx.fillStyle=K.fg;ctx.fillText('Corte lateral',ox+12,18);
+ ctx.strokeStyle=K.dim;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(PX(y0),PY(0));ctx.lineTo(PX(y1),PY(0));ctx.stroke();
+ font(ctx,11);ctx.fillStyle=K.mute;for(let y=0;y<=y1;y+=y1>30?10:5)ctx.fillText(fmt(y,0)+' m',PX(y)-8,h-8);
+ const g=geoAt(R);const tcp=tc[0];const fl=subs.filter(s=>+s.ang!==180);const sc=fl.length?{y:fl.reduce((a,b)=>a+b.y,0)/fl.length,z:fl.reduce((a,b)=>a+b.z,0)/fl.length}:null;
+ ctx.setLineDash([5,4]);ctx.lineWidth=1.2;if(tcp){ctx.strokeStyle=K.acc;ctx.beginPath();ctx.moveTo(PX(tcp.y),PY(tcp.z));ctx.lineTo(PX(R.y),PY(R.z));ctx.stroke();}
+ if(sc){ctx.strokeStyle=K.sub;ctx.beginPath();ctx.moveTo(PX(sc.y),PY(sc.z));ctx.lineTo(PX(R.y),PY(R.z));ctx.stroke();}ctx.setLineDash([]);ctx.lineWidth=1;
+ if(S.pa.type==='la'&&c&&isNum(c.f.h)){laBoxes(S.la,c).forEach(b=>{ctx.strokeStyle=K.acc;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(PX(S.la.y+b.T[0]),PY(b.T[1]));ctx.lineTo(PX(S.la.y+b.B[0]),PY(b.B[1]));ctx.stroke();});ctx.lineWidth=1;}
+ else if(tcp){const hh=c&&isNum(c.f.h)?c.f.h:0.6;if(S.pa.type==='ps'){ctx.strokeStyle=K.dim;ctx.beginPath();ctx.moveTo(PX(tcp.y),PY(0));ctx.lineTo(PX(tcp.y),PY(tcp.z-hh/2));ctx.stroke();}ctx.fillStyle=K.acc;ctx.fillRect(PX(tcp.y)-4,PY(tcp.z+hh/2),7,Math.max(4,hh*s));}
+ subs.forEach(su=>{ctx.fillStyle=K.sub;ctx.fillRect(PX(su.y)-5,PY(su.z)-5,10,10);});
+ ctx.fillStyle=K.fg;ctx.beginPath();ctx.arc(PX(R.y),PY(R.z),5,0,7);ctx.fill();font(ctx,12,600);ctx.fillText('Referencia',PX(R.y)-30,PY(R.z)-12);
+ if(g&&tcp){font(ctx,12,600);ctx.fillStyle=K.acc;ctx.fillText(fmt(g.dT,2)+' m',PX((tcp.y+R.y)/2),PY((tcp.z+R.z)/2)-9);}
+ if(g&&sc&&isNum(g.dS)){ctx.fillStyle=K.sub;ctx.fillText(fmt(g.dS,2)+' m',PX((sc.y+R.y)/2),PY((sc.z+R.z)/2)+18);}}
+WORK.montaje=()=>`<div class="vh"><h1>Montaje</h1><p>Cargá en el panel cómo está armado el sistema y acá tenés el delay para arrancar. El ajuste final se hace midiendo en el lugar.</p></div>
+<div id="warnBox"></div><div class="res" id="mtRes"></div><p class="lead" id="mtTxt"></p>
+<div class="cvbox" style="height:320px"><canvas id="cvRig"></canvas></div>
+<div class="row2b"><div class="big" id="mtPos"></div><div class="big" id="mtPh"></div></div>
+<div class="big" id="mtWhere"></div>`;
+PROPS.montaje=()=>{const t=S.pa.type,la=S.la,tp=store.get('tpa.tpl',{});return`<section><h3>Armados guardados</h3><p class="sub">Guardá cómo armás en cada tipo de lugar y cargalo al llegar.</p>${[['cerrado','Lugar cerrado'],['aire','Aire libre']].map(([k,n])=>`<div class="ps-h" style="gap:8px;align-items:flex-start"><span style="flex:1;min-width:0">${n}<small class="help" style="display:block">${tp[k]?esc(tp[k].desc):'Sin guardar'}</small></span>${tp[k]?`<button class="btn sm" data-act="tpl-load" data-v="${k}">Cargar</button>`:''}<button class="btn sm ghost" data-act="tpl-save" data-v="${k}">Guardar actual</button></div>`).join('')}</section>
+<section><h3>Recinto</h3>${NUM('Ancho','venue.w',{st:1,mn:4,u:'m'})}${NUM('Largo','venue.d',{st:1,mn:4,u:'m'})}${NUM('Público desde','venue.aud',{st:0.5,mn:0,u:'m'})}${NUM('FOH a','venue.fohY',{st:0.5,mn:1,u:'m',h:'Todas las distancias se miden desde el borde del escenario.'})}</section>
+<section><h3>PA principal</h3>${SEL('Tipo','pa.type',[['la','Line array colgado'],['ps','Cajas en trípode o colgadas'],['none','Sin PA principal']],{rb:1})}
+${t==='la'?SEL('Modelo','la.cab',cabOpts('la'),{rb:1})+SEL('Cajas por lado','la.n',[1,2,3,4,5,6].map(n=>[n,n]),{num:1})+RNG('Altura de colgado','la.rigH',{mn:2,mx:20,st:0.1,u:'m'})+RNG('Inclinación de la primera caja','la.site',{mn:-6,mx:20,st:0.5,u:'°',h:'Positivo apunta hacia abajo. Los ángulos entre cajas se ajustan en Ángulos del line array.'}):''}
+${t==='ps'?SEL('Modelo','pa.cab',cabOpts('ps'),{rb:1})+SEL('Cajas por lado','pa.n',[[1,1],[2,2]],{num:1})+RNG('Altura del centro de la caja','pa.h',{mn:0.5,mx:12,st:0.1,u:'m',h:'En trípode suele quedar cerca de 2 a 2,5 m.'})+RNG('Inclinación','pa.tilt',{mn:-10,mx:30,st:0.5,u:'°',h:'Positivo apunta hacia abajo.'}):''}
+${t!=='none'?RNG('Distancia de cada lado al centro','la.x',{mn:0.5,mx:25,st:0.1,u:'m',h:`Separación entre lados: ${fmt(la.x*2,1)} m.`})+RNG('Distancia al borde del escenario','la.y',{mn:-5,mx:10,st:0.1,u:'m',h:'Positivo es hacia el público.'}):''}</section>
+<section><h3>Subs</h3>${CHK('Hay subs en el armado','subs.on',{rb:1})}${S.subs.on?SEL('Modelo','subs.cab',cabOpts('sub'),{rb:1})+SEL('Ubicación','subs.cfg',[['lr','En el piso, debajo de cada lado'],['central','En el piso, juntos al centro'],['linea','En línea a lo ancho'],['cardioid','Cardioide'],['endfire','End-fire'],['custom','Personalizada']],{rb:1})+(S.subs.cfg!=='custom'?SEL('Cantidad','subs.n',[1,2,3,4,6,8,10,12].map(n=>[n,n]),{num:1})+RNG('Distancia al borde del escenario','subs.y',{mn:-6,mx:6,st:0.05,u:'m'}):'<p class="sub">Las posiciones se editan en Configuración de subs.</p>'):''}</section>
+<section><h3>Alinear en</h3>${SEL('Punto','mt.ref',[['foh','El FOH'],['mid','La mitad del público'],['custom','Otra distancia']],{rb:1})}${S.mt.ref==='custom'?RNG('Distancia','xo.refD',{mn:2,mx:Math.max(10,S.venue.d),st:0.5,u:'m'}):''}
+${NUM('Temperatura','env.temp',{st:1,u:'°C'})}</section>
+<section><h3>Señal a los subs</h3>${SEL('Cómo llega','mt.route',[['chain','En cadena: entra al sub y pasa a los tops'],['send','Por un envío o salida de la consola']],{rb:1,h:S.mt.route==='chain'?'Sin delay en el sub, se alinea con la perilla de fase.':'El delay se carga en ese envío o salida.'})}
+${SEL('Corte del sub','xo.fc',[60,80,90,100,120,150].map(f=>[f,f+' Hz']),{num:1})}</section>`;};
+UPD.montaje=function(){const wb=$('#warnBox'),res=$('#mtRes'),txt=$('#mtTxt'),pos=$('#mtPos'),ph=$('#mtPh');const R=refPoint();
+ const g0=cv('cvRig');const draw=()=>{if(!g0)return;const two=g0.w>640;if(!two)return drawSide(g0.ctx,0,g0.w,g0.h,R);drawPlan(g0.ctx,0,g0.w*0.42,g0.h,R);if(two){g0.ctx.strokeStyle=K.line;g0.ctx.beginPath();g0.ctx.moveTo(g0.w*0.42,10);g0.ctx.lineTo(g0.w*0.42,g0.h-10);g0.ctx.stroke();drawSide(g0.ctx,g0.w*0.42,g0.w*0.58,g0.h,R);}};
+ const clear=()=>{res.innerHTML='';txt.innerHTML='';pos.hidden=true;ph.hidden=true;draw();};
+ if(S.pa.type==='none'){wb.innerHTML=warnHTML(['Sin PA principal no hay nada que alinear con los subs. Para cajas repartidas por el lugar usá Cajas distribuidas.']);return clear();}
+ const tc=topsCab();if(!tc){wb.innerHTML=warnHTML(['Elegí el modelo del PA.']);return clear();}
+ const ws=[];if(S.pa.type==='la'&&!(isNum(tc.f.h)&&tc.f.h>0))ws.push(`${cname(tc)} no tiene cargado el alto de la caja, así que tomo la altura de colgado como centro del array. Cargá el alto en la biblioteca para afinar el cálculo.`);
+ if(!S.subs.on||!S.subs.list.length){wb.innerHTML=warnHTML([...ws,'Sin subs no hace falta alinear. Activalos en el panel si los vas a usar.']);return clear();}
+ wb.innerHTML=warnHTML(ws);pos.hidden=false;ph.hidden=false;
+ const g=geoAt(R),rec=+g.ms.toFixed(2),fs=S.env.fs,onSubs=S.xo.topDelay===0,val=onSubs?S.xo.subDelay:S.xo.topDelay,dd=Math.abs(g.dT-g.dS);
+ const chain=S.mt.route==='chain',fc=S.xo.fc,kn=knobFor(rec,fc);
+ res.innerHTML=(chain?`<div class="big hl"><span>Perilla de fase del sub</span><b>${kn.k}°</b><small>Con el corte en ${fc} Hz${kn.err>20?`. No alcanza: quedan ${kn.err}° de diferencia`:''}</small></div>
+<div class="big"><span>Delay equivalente</span><b>${fmt(Math.abs(rec),2)} ms</b><small>No se puede cargar: el sub no tiene delay y la señal va en cadena</small></div>`
+ :`<div class="big hl"><span>Delay en los ${onSubs?'subs':'tops'}</span><b>${fmt(val,2)} ms</b><small>${Math.round(val*fs/1000)} muestras a ${fmt(fs/1000,1)} kHz${S.mt.auto?'':'. Valor elegido a mano'}</small></div>
+<div class="big"><span>Polaridad de los subs</span><b>${S.xo.subPol===1?'Normal':'Invertida'}</b></div>`)+`
+<div class="big"><span>Diferencia de recorrido</span><b>${fmt(dd,2)} m</b><small>PA ${fmt(g.dT,2)} m, subs ${fmt(g.dS,2)} m</small></div>
+<div class="big vel"><span>Velocidad del sonido</span><b>${fmt(C(),1)} m/s</b><small>A ${fmt(S.env.temp,0)} °C</small></div>`;
+ const near=rec>=0?'los subs están':'el PA está',far=rec>=0?'el PA':'los subs',who=rec>=0?'los subs':'los tops';
+ const base=Math.abs(rec)<0.05?`Desde ${R.n}, el PA y los subs están a la misma distancia.`:`Desde ${R.n}, ${near} ${fmt(dd,2)} m más cerca que ${far}, así que su sonido llega ${fmt(Math.abs(rec),2)} ms antes.`;
+ txt.innerHTML=chain?`${base}<span class="l2"> Como la señal entra al sub y de ahí pasa a los tops, no se puede retrasar uno solo. La perilla de fase del sub corre la fase en la zona del corte, que es donde los dos se suman: ${Math.abs(rec)<0.05?'en este caso dejala en 0°.':`retrasar ${fmt(rec,2)} ms a ${fc} Hz equivale a girarla ${kn.L}°${kn.L>180?`, y como llega hasta 180°, lo más cercano es dejarla en ${kn.k}°`:''}.`}</span>`
+  :(Math.abs(rec)<0.05?`${base} No hace falta delay.`:`${base} Retrasando ${who} ${fmt(Math.abs(rec),2)} ms, los dos llegan juntos a ese punto.`)+(S.mt.auto?'':` Ahora está cargado otro valor. <button class="btn sm" data-act="mt-geo">Volver al delay geométrico</button>`);
+ if(chain&&(kn.err>20||Math.abs(rec)>5))wb.innerHTML=warnHTML([...ws,'Con esta diferencia la perilla no corrige bien. Si podés, poné los subs más cerca de la vertical del PA o mandalos por un envío de la consola con delay.']);
+ const P=[['Primera fila',S.venue.aud+0.5],['Mitad del público',(S.venue.aud+S.venue.d)/2],['FOH',S.venue.fohY],['Fondo',S.venue.d-0.5]].sort((a,b)=>a[1]-b[1]);
+ pos.innerHTML=`<span>Según dónde escuches</span><div class="tblwrap"><table class="tbl"><tbody>${P.map(([n,y])=>{const q=geoAt({x:0,y,z:S.env.earH});return`<tr><td>${n}</td><td>${fmt(y,1)} m</td><td style="text-align:right;white-space:nowrap"><b>${fmt(Math.abs(q.ms),2)} ms</b>${q.ms<0?' en tops':''}</td>${chain?`<td style="text-align:right"><b>${knobFor(q.ms,fc).k}°</b></td>`:''}</tr>`;}).join('')}</tbody></table></div><small>Con el PA arriba y los subs en el piso, el valor ideal cambia de adelante hacia atrás. Elegí el punto donde más te importa que sume bien.</small>`;
+ if(chain){ph.innerHTML=`<span>Perilla según el corte del sub</span><div class="tblwrap"><table class="tbl"><tbody>${[80,100,120].map(f=>{const k=knobFor(rec,f);return`<tr${f===fc?' class="sel"':''}><td>Corte en ${f} Hz</td><td style="text-align:right;white-space:nowrap"><b>${k.k}°</b>${k.err>20?` <span class="st warn">faltan ${k.err}°</span>`:''}</td></tr>`;}).join('')}</tbody></table></div>
+<small>Para afinarla en el lugar: poné ruido rosa o un tono en la frecuencia de corte, parate en el punto de referencia y que alguien gire la perilla despacio. Dejala donde se escuche más fuerte y más lleno. Si medís con micrófono, buscá que las fases del sub y de los tops se crucen en el corte. El cálculo supone que la perilla atrasa al sub a medida que sube; si en tu modelo es al revés, la prueba de oído lo resuelve igual.</small>`;}
+ else{const po=phaseOpt(R);
+ ph.innerHTML=po?`<span>Ajuste fino por fase (estimado)</span><b>${fmt(Math.abs(po.d),2)} ms en los ${po.d>=0?'subs':'tops'}</b><small>Polaridad ${po.pol===1?'normal':'invertida'}. Sale de suponer filtros ${FILTNAMES.find(f=>f[0]===S.xo.lp)[1]} a ${S.xo.fc} Hz. En cajas activas el filtro interno puede ser otro, así que tomalo como orientación y confirmalo midiendo.</small><div class="btnrow" style="margin-top:8px"><button class="btn sm" data-act="mt-phase">Usar este valor</button><button class="btn sm ghost" data-view="align">Ver las curvas de fase</button></div>`
+  :`<span>Ajuste fino por fase</span><small style="margin-top:4px">Para estimarlo hacen falta los datos completos del PA y de los subs en la biblioteca: respuesta en frecuencia, SPL máximo (o sensibilidad y potencia), cobertura y medidas. El delay geométrico de arriba no los necesita.</small>`;}
+ $('#mtWhere').innerHTML=`<span>${chain?'Dónde se ajusta':'Dónde se carga el delay'}</span><small style="color:var(--mute);font-size:14px;margin-top:4px">${chain?'En la perilla de fase de cada sub, todos con el mismo valor. Fijate si la salida del sub hacia los tops sale filtrada o completa: si sale completa y los tops tienen su propio corte de 80, 100 o 120 Hz, usá el mismo corte en los dos.':'En el envío o la salida de la consola que manda a los subs. Si la consola te deja cargarlo en metros, usá la diferencia de recorrido. La perilla de fase del sub queda en 0° y se toca solo para afinar.'}</small>`;
+ draw();};
+
+/* ---- Cajas distribuidas ---- */
+WORK.dist=()=>`<div class="vh"><h1>Cajas distribuidas</h1><p>Para cajas repartidas a lo largo del lugar: torres de delay, cajas en un salón largo, frontfills u outfills. Cada caja recibe el delay que necesita para sonar junto con el PA, o con la primera fila de cajas si no hay PA.</p></div>
+<div id="warnBox"></div><div class="cvbox" style="height:360px"><canvas id="cvDist"></canvas></div><div id="distRes"></div>`;
+function distHTML(){const opts=cabOpts('ps');return S.ps.map((p,i)=>`<div class="ps"><div class="ps-h"><b style="font:600 14px var(--ui);white-space:nowrap">Caja ${i+1}</b><select data-p="ps.${i}.role" aria-label="Uso de la caja ${i+1}">${['Delay','Torre de delay','Frontfill','Outfill','Sidefill','Otra'].map(r=>`<option${r===p.role?' selected':''}>${r}</option>`).join('')}</select><button class="x" data-act="ps-del" data-i="${i}" aria-label="Quitar caja ${i+1}">×</button></div>
+<select data-p="ps.${i}.cab" aria-label="Modelo de la caja ${i+1}">${opts.map(([v,t])=>`<option value="${v}"${v===p.cab?' selected':''}>${esc(t)}</option>`).join('')}</select>
+<div class="mini">${[['y','Distancia (m)',0.5],['x','Lateral (m)',0.1],['z','Altura (m)',0.1],['yaw','Giro (°)',1],['tilt','Inclinación (°)',1],['gain','Nivel (dB)',0.5]].map(([k,l,st])=>`<label>${l}<input type="number" step="${st}" data-p="ps.${i}.${k}" value="${p[k]}"></label>`).join('')}
+<label>Delay (ms)<input type="number" step="0.01" data-p="ps.${i}.delay" value="${p.delay}"${S.dist.auto?' disabled':''}></label><label>Polaridad<select data-p="ps.${i}.pol" data-num><option value="1"${p.pol===1?' selected':''}>Normal</option><option value="-1"${p.pol===-1?' selected':''}>Invertida</option></select></label></div></div>`).join('');}
+PROPS.dist=()=>{const none=S.pa.type==='none';return`<section><h3>Referencia</h3>${none?'<p class="sub">No hay PA principal, así que las cajas más cercanas al escenario son la referencia y las demás se retrasan respecto de ellas.</p>':SEL('Alinear con','dist.ref',[['pa','El PA principal'],['first','La primera fila de cajas']])}
+${RNG('Punto de escucha delante de cada caja','dist.behind',{mn:1,mx:15,st:0.5,u:'m',h:'Es donde la caja y el PA tienen que llegar juntos, en la dirección en que apunta la caja.'})}
+${NUM('Adelanto del PA','dist.offset',{st:0.5,mn:0,u:'ms',h:'Se suma a cada caja para que el PA llegue un poco antes y el sonido se siga ubicando en el escenario. Se suele usar entre 5 y 10 ms.'})}
+${CHK('Cargar los delays calculados','dist.auto',{rb:1,h:'Destildalo si querés escribir los delays a mano.'})}</section>
+<section><h3>Repartir cajas</h3>${SEL('Modelo','dist.gen.cab',cabOpts('ps'))}${SEL('Ubicación','dist.gen.pos',[['both','A los dos lados'],['center','Al centro'],['left','Pared izquierda'],['right','Pared derecha']])}${SEL('Posiciones a lo largo','dist.gen.n',[1,2,3,4,5,6,8].map(n=>[n,n]),{num:1})}${NUM('Primera a','dist.gen.y0',{st:0.5,mn:0,u:'m',h:'Distancia desde el borde del escenario.'})}${NUM('Separación','dist.gen.step',{st:0.5,mn:1,u:'m'})}${NUM('Altura','dist.gen.z',{st:0.1,mn:0.3,u:'m'})}
+<button class="btn pri" data-act="dist-gen">Agregar cajas</button></section>
+<section><h3>Cajas (${S.ps.length})</h3><div id="distList" style="display:flex;flex-direction:column;gap:8px">${distHTML()}</div><div class="btnrow"><button class="btn sm" data-act="dist-add">Agregar una caja</button>${S.ps.length?'<button class="btn sm danger" data-act="dist-clear">Borrar todas</button>':''}</div></section>`;};
+UPD.dist=function(){const wb=$('#warnBox'),first=S.dist.ref==='first'||S.pa.type==='none';const ws=[];
+ if(!first&&!topCenters().length)ws.push('Falta el modelo del PA en Montaje. También podés alinear con la primera fila de cajas.');
+ if(!S.ps.length)ws.push('Todavía no hay cajas. Usá Repartir cajas en el panel de la derecha.');
+ const info=S.ps.map((_,i)=>distInfo(i));
+ if(S.dist.auto)S.ps.forEach((p,i)=>{const el=$(`[data-p="ps.${i}.delay"]`);if(el)el.value=p.delay;});
+ if(info.some((d,i)=>d&&!d.ref&&d.raw<0))ws.push('Alguna caja llega después que el PA aunque no tenga delay. Revisá su posición o hacia dónde apunta.');
+ wb.innerHTML=warnHTML(ws);const fs=S.env.fs;
+ $('#distRes').innerHTML=S.ps.length?`<div class="big"><span>Delay por caja</span><div class="tblwrap"><table class="tbl"><thead><tr><th>Caja</th><th>Distancia</th><th>Recorrido desde ${first?'la primera fila':'el PA'}</th><th>Recorrido desde la caja</th><th style="text-align:right">Delay</th><th style="text-align:right">Muestras</th></tr></thead><tbody>${S.ps.map((p,i)=>{const d=info[i];return`<tr><td>${i+1}. ${esc(p.role)}</td><td>${fmt(p.y,1)} m</td><td>${d?fmt(d.dMain,2)+' m':'–'}</td><td>${d?fmt(d.dSec,2)+' m':'–'}</td><td style="text-align:right;white-space:nowrap"><b>${fmt(p.delay,2)} ms</b>${d&&d.ref?' <span class="st mut">referencia</span>':''}${!S.dist.auto&&d&&Math.abs(d.ms-p.delay)>0.05?` <span class="st warn">calculado ${fmt(d.ms,2)}</span>`:''}</td><td style="text-align:right">${Math.round(p.delay*fs/1000)}</td></tr>`;}).join('')}</tbody></table></div><small>Cada caja necesita su propia salida para tener su delay. Si dos cajas reciben la señal en cadena, comparten el delay, así que conviene que estén a la misma distancia del escenario.</small></div>`:'';
+ const g=cv('cvDist');if(g)drawPlan(g.ctx,0,g.w,g.h,null,{labels:true});};
+
+/* ---- Line array ---- */
+WORK.la=()=>`<div class="vh"><h1>Line array</h1><p>Elegí cuántas cajas colgás y el ángulo entre cada una. El corte lateral muestra cómo llega la banda elegida al público y el gráfico compara el nivel a lo largo del recinto.</p></div>
+<div id="warnBox"></div><div class="ros" id="laRo"></div>
+<div class="cvbox h-side"><canvas id="cvSide"></canvas></div>
+<div class="legend" id="laLeg"></div>
+<div class="cvbox h-chart"><canvas id="cvLine"></canvas></div>${HOW}`;
+PROPS.la=()=>{const lc=cab(S.la.cab);const mx=lc&&isNum(lc.f.maxSplay)?lc.f.maxSplay:10;let sp='';
+ for(let i=0;i<S.la.n-1;i++)sp+=RNG(`Caja ${i+1} a ${i+2}`,`la.splay.${i}`,{mn:0,mx,st:0.5,u:'°'});
+ return`<section><h3>Caja</h3>${SEL('Modelo','la.cab',cabOpts('la'),{rb:1})}${SEL('Cajas por lado','la.n',[1,2,3,4,5,6].map(n=>[n,n]),{rb:1,num:1})}</section>
+<section><h3>Colgado</h3>${RNG('Altura de colgado','la.rigH',{mn:2,mx:20,st:0.1,u:'m',h:'Altura del punto de colgado, arriba de la primera caja.'})}${RNG('Inclinación de la primera caja','la.site',{mn:-6,mx:20,st:0.5,u:'°',h:'Positivo apunta hacia abajo.'})}</section>
+<section><h3>Ángulos entre cajas</h3>${S.la.n>1?sp+`<div class="btnrow"><button class="btn sm" data-act="pre-j">Curva J</button><button class="btn sm" data-act="pre-const">Constante</button><button class="btn sm" data-act="pre-flat">Recto</button></div>`:'<p class="sub">Con una sola caja no hay ángulos que ajustar.</p>'}</section>
+<section><h3>Posición</h3>${RNG('Distancia al centro','la.x',{mn:0.5,mx:25,st:0.1,u:'m',h:`Separación entre arrays: ${fmt(S.la.x*2,1)} m.`})}${RNG('Profundidad','la.y',{mn:-5,mx:10,st:0.1,u:'m',h:'0 es el borde del escenario.'})}${RNG('Giro hacia el centro','la.toe',{mn:0,mx:30,st:0.5,u:'°'})}</section>
+<section><h3>Banda del corte</h3>${CHIPS('la.band',BANDS)}</section>`;};
+UPD.la=function(){const lc=cab(S.la.cab),wb=$('#warnBox'),ro=$('#laRo'),la=S.la,eh=S.env.earH;const m=lc?missing(lc):[];
+ if(!lc||m.length){wb.innerHTML=warnHTML([lc?`${cname(lc)} no tiene todos los datos para predecir: ${m.join(', ')}.`:'Elegí un modelo de line array.'],true);ro.innerHTML='';$('#laLeg').innerHTML='';blank('cvSide','Faltan datos de la caja para dibujar la predicción');blank('cvLine','');return;}
+ const bx=laBoxes(la,lc),n=bx.length;const top=bx[0].T[1],bot=bx[n-1].B[1],tot=bx[n-1].a/deg;
+ const edge=(u,z,a)=>a<=0.05?null:la.y+u+(z-eh)/Math.tan(a*deg);
+ const far=edge(bx[0].c[0],bx[0].c[1],bx[0].a/deg-lc.f.vCov/2),near=edge(bx[n-1].c[0],bx[n-1].c[1],bx[n-1].a/deg+lc.f.vCov/2);
+ const ws=[];if(isNum(lc.f.maxSplay)&&la.splay.slice(0,n-1).some(v=>v>lc.f.maxSplay))ws.push(`Hay ángulos mayores que el máximo de la caja (${fmt(lc.f.maxSplay,1)}°).`);
+if(S.pa.type!=='la')ws.unshift('En Montaje el PA está cargado como cajas. Lo que ajustes acá se usa cuando elijas line array.');
+ if(bot<0.5)ws.push('El borde inferior del array queda casi en el piso. Subí la altura de colgado.');
+ wb.innerHTML=warnHTML(ws);
+ ro.innerHTML=[['Altura del array',fmt(top-bot,2)+' m'],['Borde inferior',fmt(bot,2)+' m'],['Ángulo de la última caja',fmt(tot,1)+'°'],
+  ['Zona cubierta (geométrica)',far==null||far>S.venue.d?`${near==null?'–':fmt(Math.max(near,0),1)+' m'} hasta el fondo`:`${near==null?'–':fmt(Math.max(near,0),1)} a ${fmt(far,1)} m`],['Peso por lado',isNum(lc.f.kg)?fmt(lc.f.kg*n,0)+' kg':'sin dato']]
+  .map(([a,b])=>`<div class="ro"><span>${a}</span><b>${b}</b></div>`).join('');
+ const md=buildModel({sides:['L'],subs:false,ps:false,M:3});const X=-la.x,Y=la.y,yaw=la.toe*deg,sy=Math.sin(yaw),cy=Math.cos(yaw);
+ const umax=Math.max(12,S.venue.d-la.y+1),zmax=Math.max(la.rigH+2.5,6);
+ // corte vertical
+ const du=Math.max(0.2,umax/170),us=[],zs=[];for(let u=du/2;u<=umax;u+=du)us.push(u);for(let z=zmax-du/2;z>=0;z-=du)zs.push(z);
+ const pts=new Float32Array(us.length*zs.length*3);let q=0;for(const z of zs)for(const u of us){pts[q++]=X+u*sy;pts[q++]=Y+u*cy;pts[q++]=z;}
+ const E=gridE(md,pts,bandFreqs(la.band,'band'));let mx=-1e9;for(let j=0;j<zs.length;j++)for(let i=0;i<us.length;i++)if(us[i]>2&&zs[j]<=la.rigH)mx=Math.max(mx,E[j*us.length+i]);
+ {const bxEl=$('#cvSide')?.parentElement;if(bxEl){const bw=bxEl.clientWidth;bxEl.style.height=Math.round(Math.min(440,Math.max(bw<600?170:230,(bw-50)*zmax/(umax+3)+70)))+'px';}}
+ const g=cv('cvSide');if(!g)return;const{ctx,w,h}=g;const ux0=-3,pad=30;const s=Math.min((w-pad-20)/(umax-ux0),(h-pad-34)/zmax);
+ const PX=u=>pad+(u-ux0)*s,PY=z=>h-pad-z*s;
+ ctx.imageSmoothingEnabled=false;ctx.globalAlpha=.85;ctx.drawImage(heatImg(E,us.length,zs.length,mx),PX(0),PY(zs.length*du),us.length*du*s,zs.length*du*s);ctx.globalAlpha=1;
+ ctx.fillStyle=K.panel2;ctx.fillRect(PX(ux0),PY(1.2),(-ux0-la.y)*s+0,1.2*s);
+ ctx.strokeStyle=K.dim;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(PX(ux0),PY(0));ctx.lineTo(PX(umax),PY(0));ctx.stroke();
+ const a0=S.venue.aud-la.y,a1=S.venue.d-la.y;ctx.fillStyle=K.mute;ctx.globalAlpha=.35;ctx.fillRect(PX(a0),PY(0),(a1-a0)*s,3);ctx.globalAlpha=1;
+ ctx.setLineDash([4,4]);ctx.strokeStyle=K.sum;ctx.globalAlpha=.5;ctx.beginPath();ctx.moveTo(PX(a0),PY(eh));ctx.lineTo(PX(a1),PY(eh));ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;
+ font(ctx,12);ctx.fillStyle=K.mute;ctx.fillText('Escenario',PX(ux0)+4,PY(1.2)-5);ctx.fillText(`Oídos a ${fmt(eh,1)} m`,PX(a1)-90,PY(eh)-6);
+ // rayos de apuntamiento
+ bx.forEach((b,i)=>{let ue=umax,ze=b.c[1]-Math.tan(b.a)*(umax-b.c[0]),hit=false;
+  if(b.a>0.001){const hu=b.c[0]+(b.c[1]-eh)/Math.tan(b.a);if(hu>=b.c[0]&&hu<=umax){ue=hu;ze=eh;hit=true;}}
+  if(ze<0){ue=b.c[0]+b.c[1]/Math.tan(b.a);ze=0;}
+  ctx.strokeStyle=K.sum;ctx.globalAlpha=.75;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(PX(b.c[0]),PY(b.c[1]));ctx.lineTo(PX(ue),PY(ze));ctx.stroke();ctx.globalAlpha=1;
+  if(hit){ctx.fillStyle=K.sum;ctx.beginPath();ctx.arc(PX(ue),PY(eh),3,0,7);ctx.fill();font(ctx,11.5,600);ctx.fillText(String(i+1),PX(ue)-3,PY(eh)+16);}});
+ bx.forEach(b=>{ctx.fillStyle=K.acc;ctx.beginPath();ctx.moveTo(PX(b.T[0]),PY(b.T[1]));ctx.lineTo(PX(b.B[0]),PY(b.B[1]));ctx.lineTo(PX(b.B[0])-3,PY(b.B[1]));ctx.lineTo(PX(b.T[0])-3,PY(b.T[1]));ctx.fill();});
+ // eje x
+ font(ctx,11.5);ctx.fillStyle=K.mute;ctx.textAlign='center';const stp=umax>40?10:5;for(let u=0;u<=umax;u+=stp){ctx.fillText(fmt(u+la.y,0)+' m',PX(u),h-pad+16);}ctx.textAlign='left';
+ // zoom del array
+ if(w>=640){const zw=Math.min(170,w*0.26),zh=Math.min(h-24,230),zx=w-zw-10,zy=10;ctx.fillStyle=K.panel;ctx.globalAlpha=.94;ctx.fillRect(zx,zy,zw,zh);ctx.globalAlpha=1;ctx.strokeStyle=K.line;ctx.strokeRect(zx+.5,zy+.5,zw,zh);
+ const dd=isNum(lc.f.d)?lc.f.d:lc.f.h*1.4;const allP=[];bx.forEach(b=>{const av=[Math.cos(b.a),-Math.sin(b.a)];allP.push(b.T,b.B,[b.T[0]-dd*av[0],b.T[1]-dd*av[1]],[b.B[0]-dd*av[0],b.B[1]-dd*av[1]]);});
+ const minU=Math.min(...allP.map(p=>p[0])),maxU=Math.max(...allP.map(p=>p[0])),minZ=Math.min(...allP.map(p=>p[1])),maxZ=Math.max(...allP.map(p=>p[1]));
+ const zs2=Math.min((zw-70)/(maxU-minU),(zh-50)/(maxZ-minZ));const ZX=u=>zx+20+(u-minU)*zs2,ZY=z=>zy+28+(maxZ-z)*zs2;
+ font(ctx,12,600);ctx.fillStyle=K.fg;ctx.fillText(`Inclinación ${fmt(la.site,1)}°`,zx+8,zy+17);
+ bx.forEach((b,i)=>{const av=[Math.cos(b.a),-Math.sin(b.a)];const P=[b.T,b.B,[b.B[0]-dd*av[0],b.B[1]-dd*av[1]],[b.T[0]-dd*av[0],b.T[1]-dd*av[1]]];
+  ctx.beginPath();P.forEach((p,k)=>k?ctx.lineTo(ZX(p[0]),ZY(p[1])):ctx.moveTo(ZX(p[0]),ZY(p[1])));ctx.closePath();ctx.fillStyle=K.panel2;ctx.fill();ctx.strokeStyle=K.mute;ctx.lineWidth=1;ctx.stroke();
+  ctx.strokeStyle=K.acc;ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(ZX(b.T[0]),ZY(b.T[1]));ctx.lineTo(ZX(b.B[0]),ZY(b.B[1]));ctx.stroke();
+  font(ctx,11,600);ctx.fillStyle=K.mute;ctx.fillText(String(i+1),ZX(b.c[0]-dd*av[0]/2)-3,ZY(b.c[1]-dd*av[1]/2)+4);
+  if(i<n-1){font(ctx,11.5,600);ctx.fillStyle=K.acc;ctx.fillText(fmt(la.splay[i],1)+'°',ZX(b.B[0])+6,ZY(b.B[1])+4);}});}
+ // curva por distancia
+ const bl=[250,1000,4000];if(!bl.includes(la.band))bl.push(la.band);const cols={250:K.sub,1000:K.acc,4000:K.sum};const ps=[];for(let u=0.5;u<=umax;u+=Math.max(0.15,umax/240))ps.push(u);
+ const curves=bl.map(b=>{const fr=bandFreqs(b,'band'),pps=fr.map(f=>prep(md,f));return ps.map(u=>energyAt(X+u*sy,Y+u*cy,eh,md,fr,pps));});
+ let cmax=-1e9;curves.forEach(c=>c.forEach((v,i)=>{if(ps[i]>=a0)cmax=Math.max(cmax,v)}));const y1=Math.ceil(cmax/3)*3+3,y0=y1-30;
+ const deltas=bl.map((b,k)=>{const z=curves[k].filter((v,i)=>ps[i]>=a0&&ps[i]<=a1);return Math.max(...z)-Math.min(...z);});
+ $('#laLeg').innerHTML=bl.map((b,k)=>`<span><i style="background:${cols[b]||K.warn}"></i>${bandLbl(b)}: varía ${fmt(deltas[k],1)} dB en el público</span>`).join('');
+ const g2=cv('cvLine');const F=frame(g2,{x0:la.y,x1:la.y+umax,y0,y1,xt:Array.from({length:Math.floor(umax/stp)+1},(_,i)=>Math.round(la.y)+i*stp).filter(v=>v>=la.y&&v<=la.y+umax),yt:Array.from({length:11},(_,i)=>y0+i*3),xf:v=>v+' m',yf:v=>v,yl:'dB SPL'});
+ g2.ctx.fillStyle=K.mute;g2.ctx.globalAlpha=.08;g2.ctx.fillRect(F.X(S.venue.aud),F.pt,F.X(S.venue.d)-F.X(S.venue.aud),F.ih);g2.ctx.globalAlpha=1;
+ curves.forEach((c,k)=>line(g2.ctx,ps.map(u=>F.X(u+la.y)),c.map(v=>F.Y(Math.max(v,y0))),cols[bl[k]]||K.warn,bl[k]===la.band?2.6:1.6));
+ font(g2.ctx,12);g2.ctx.fillStyle=K.dim;g2.ctx.fillText('Zona de público',F.X(S.venue.aud)+6,F.pt+14);};
+
+/* ---- Subs ---- */
+WORK.subs=()=>`<div class="vh"><h1>Subwoofers</h1><p>Armá la configuración y mirá cómo se reparte la energía de graves adelante y atrás del escenario. Abajo se comparan las cuatro configuraciones con los mismos subs.</p></div>
+<div id="warnBox"></div><div class="ros" id="subRo"></div>
+<div class="row2"><div class="cvbox h-polar"><canvas id="cvPolar"></canvas></div><div class="cvbox h-polar"><canvas id="cvSubMap"></canvas></div></div>
+<div class="cvbox" style="height:230px"><canvas id="cvCmp"></canvas></div>${HOW}`;
+PROPS.subs=()=>{const sb=S.subs,cf=sb.cfg,lam4=C()/(4*sb.dsep);return`<section><h3>Subs</h3>
+<div class="f"><label for="f-subs-on">Usar subs en el diseño</label><input type="checkbox" id="f-subs-on" data-p="subs.on"${sb.on?' checked':''}></div>
+${SEL('Modelo','subs.cab',cabOpts('sub'),{rb:1})}${SEL('Configuración','subs.cfg',CFGS,{rb:1})}${cf!=='custom'?SEL('Cantidad','subs.n',[2,3,4,6,8,10,12].map(n=>[n,n]),{num:1}):''}</section>
+${cf!=='custom'?`<section><h3>Ubicación</h3>${RNG('Profundidad del frente','subs.y',{mn:-6,mx:6,st:0.05,u:'m',h:'0 es el borde del escenario.'})}
+${cf==='linea'?RNG('Distancia entre subs','subs.s',{mn:0.5,mx:6,st:0.05,u:'m'}):''}
+${cf==='cardioid'||cf==='endfire'?RNG(cf==='cardioid'?'Separación frente y fondo':'Separación entre filas','subs.dsep',{mn:0.3,mx:2.5,st:0.05,u:'m',h:`Rinde mejor cerca de ${fmt(lam4,0)} Hz (un cuarto de longitud de onda).`})+SEL('Grupos','subs.loc',[['center','Al centro'],['lr','Izquierda y derecha']]):''}
+${cf==='endfire'?SEL('Subs por fila','subs.row',[2,3,4].map(n=>[n,n]),{num:1}):''}</section>`:''}
+<section><h3>Análisis</h3>${SEL('Frecuencia','subs.f',[31.5,40,50,63,80,100,125].map(f=>[f,f+' Hz']),{num:1})}${SEL('Modo','subs.mode',[['band','Banda de 1/3 de octava'],['freq','Frecuencia única']])}</section>
+<section><h3>Posiciones, delays y polaridad</h3><p class="sub">Si editás la tabla, la configuración pasa a personalizada.</p><div id="subTable">${subTableHTML()}</div></section>`;};
+function subTableHTML(){return`<div class="tblwrap"><table class="tbl sm"><thead><tr><th>#</th><th>x</th><th>y</th><th>z</th><th>Mira</th><th>ms</th><th>Pol.</th><th>dB</th><th></th></tr></thead><tbody>${S.subs.list.map((s,i)=>`<tr><td>${i+1}</td>${['x','y','z'].map(k=>`<td><input type="number" step="0.05" data-p="subs.list.${i}.${k}" value="${s[k]}" aria-label="Sub ${i+1} ${k}"></td>`).join('')}
+<td><select data-p="subs.list.${i}.ang" data-num aria-label="Sub ${i+1} orientación"><option value="0"${+s.ang===0?' selected':''}>Frente</option><option value="180"${+s.ang===180?' selected':''}>Atrás</option></select></td>
+<td><input type="number" step="0.01" data-p="subs.list.${i}.delay" value="${s.delay}" aria-label="Sub ${i+1} delay"></td>
+<td><select data-p="subs.list.${i}.pol" data-num aria-label="Sub ${i+1} polaridad"><option value="1"${+s.pol===1?' selected':''}>+</option><option value="-1"${+s.pol===-1?' selected':''}>−</option></select></td>
+<td><input type="number" step="0.5" data-p="subs.list.${i}.gain" value="${s.gain||0}" aria-label="Sub ${i+1} ganancia"></td>
+<td><button class="x" data-act="sub-del" data-i="${i}" aria-label="Quitar sub ${i+1}">×</button></td></tr>`).join('')}</tbody></table></div><div class="btnrow"><button class="btn sm" data-act="sub-add">Agregar sub</button></div>`;}
+function renderSubTable(){const el=$('#subTable');if(el)el.innerHTML=subTableHTML();}
+function polarVals(md,list,fr){const cx=list.reduce((s,a)=>s+a.x,0)/list.length,cy=list.reduce((s,a)=>s+a.y,0)/list.length;const pps=fr.map(f=>prep(md,f));
+ return Array.from({length:72},(_,i)=>{const a=i*5*deg;return energyAt(cx+20*Math.sin(a),cy+20*Math.cos(a),S.env.earH,md,fr,pps);});}
+UPD.subs=function(){const wb=$('#warnBox'),sb=S.subs;const sc=cab(sb.cab);
+ if(!sb.on){wb.innerHTML=warnHTML(['Los subs están desactivados. Activalos en el panel de la derecha.']);['cvPolar','cvSubMap','cvCmp'].forEach(id=>blank(id,''));$('#subRo').innerHTML='';return;}
+ if(!sc||missing(sc).length){wb.innerHTML=warnHTML([sc?`${cname(sc)} no tiene todos los datos: ${missing(sc).join(', ')}.`:'Elegí un modelo de sub.'],true);['cvPolar','cvSubMap','cvCmp'].forEach(id=>blank(id,'Faltan datos del sub'));$('#subRo').innerHTML='';return;}
+ if(!sb.list.length){wb.innerHTML=warnHTML(['No hay subs en la lista.']);return;}wb.innerHTML='';
+ const md=buildModel({tops:false,ps:false}),fr=bandFreqs(sb.f,sb.mode);
+ // polar
+ const pv=polarVals(md,sb.list,fr),pmax=Math.max(...pv);const rel=pv.map(v=>v-pmax);
+ const g=cv('cvPolar');const R=Math.min(g.w,g.h)/2-34;polar(g.ctx,g.w/2,g.h/2+6,R,rel,K.sub,{labels:1});font(g.ctx,12);g.ctx.fillStyle=K.mute;g.ctx.textAlign='center';
+ g.ctx.fillText('Público',g.w/2,g.h/2+6-R-8);g.ctx.fillText('Escenario',g.w/2,g.h/2+6+R+17);g.ctx.textAlign='left';font(g.ctx,12.5,600);g.ctx.fillStyle=K.fg;g.ctx.fillText(`Polar a 20 m, ${sb.f} Hz`,10,18);
+ const front=pv[0],rear=pv[36];
+ $('#subRo').innerHTML=[['Nivel adelante a 20 m',fmt(front,1)+' dB'],['Nivel atrás a 20 m',fmt(rear,1)+' dB'],['Rechazo atrás',fmt(front-rear,1)+' dB',front-rear>=10?'ok':front-rear>=4?'warn':'bad'],['Subs',`${sb.list.length} × ${cname(sc)}`]]
+  .map(([a,b,c])=>`<div class="ro ${c||''}"><span>${a}</span><b>${b}</b></div>`).join('');
+ // mapa
+ const W=S.venue.w,D=S.venue.d,xr=[-W/2-4,W/2+4],yr=[-12,D];const cell=Math.max(0.4,Math.sqrt((xr[1]-xr[0])*(yr[1]-yr[0])/5000));
+ const xs=[],ys=[];for(let x=xr[0]+cell/2;x<xr[1];x+=cell)xs.push(x);for(let y=yr[0]+cell/2;y<yr[1];y+=cell)ys.push(y);
+ const pts=new Float32Array(xs.length*ys.length*3);let q=0;for(const y of ys)for(const x of xs){pts[q++]=x;pts[q++]=y;pts[q++]=S.env.earH;}
+ const E=gridE(md,pts,fr);let mx=-1e9;for(let j=0;j<ys.length;j++)if(ys[j]>2)for(let i=0;i<xs.length;i++)mx=Math.max(mx,E[j*xs.length+i]);
+ const g2=cv('cvSubMap');const t=topTf(g2.w,g2.h,xr,yr,14,64,14,14);g2.ctx.imageSmoothingEnabled=false;g2.ctx.drawImage(heatImg(E,xs.length,ys.length,mx),t.X(xr[0]),t.Y(yr[0]),(xr[1]-xr[0])*t.s,(yr[1]-yr[0])*t.s);
+ drawVenue(g2.ctx,t,{subs:true,tops:false,ps:false});legend(g2.ctx,g2.w-56,30,mx,Math.min(220,g2.h-50));
+ // comparación
+ const g3=cv('cvCmp');const types=[['lr','Pares L/R'],['central','Central'],['cardioid','Cardioide'],['endfire','End-fire']];
+ const res=types.map(([id,nm])=>{const list=genSubs({...sb,cfg:id});const m=buildModel({tops:false,ps:false,list});const v=polarVals(m,list,fr);return{id,nm,v,f:v[0],r:v[36]};});
+ const bestF=Math.max(...res.map(r=>r.f));const cw=g3.w/4;res.forEach((r,i)=>{const cx=cw*i+cw/2,R2=Math.min(cw/2-18,(g3.h-80)/2);const mxv=Math.max(...r.v);
+  polar(g3.ctx,cx,26+R2+8,R2,r.v.map(v=>v-mxv),r.id===sb.cfg?K.acc:K.sub,{});font(g3.ctx,13,600);g3.ctx.fillStyle=r.id===sb.cfg?K.acc:K.fg;g3.ctx.textAlign='center';g3.ctx.fillText(r.nm,cx,18);
+  font(g3.ctx,12);g3.ctx.fillStyle=K.mute;g3.ctx.fillText(`Adelante ${sgn(r.f-bestF,1)} dB`,cx,g3.h-30);g3.ctx.fillText(`Rechazo atrás ${fmt(r.f-r.r,1)} dB`,cx,g3.h-13);g3.ctx.textAlign='left';});};
+
+/* ---- Mapa ---- */
+WORK.map=()=>`<div class="vh"><h1>Recinto y mapa SPL</h1><p>Vista superior del público con el nivel estimado por banda. Tocá el mapa para ver el espectro en ese punto. Incluye el PA, los subs y las cajas distribuidas con sus delays.</p></div>
+<div id="warnBox"></div><div class="ros" id="mapRo"></div>
+<div class="cvbox h-map"><canvas id="cvMap"></canvas></div>
+<div class="legend"><span>${badge}</span><span>Cada color son 3 dB</span></div>${HOW}`;
+PROPS.map=()=>`<section><h3>Vista</h3>${CHIPS('map.band',BANDS)}${SEL('Mostrar','map.show',[['all','Todo el sistema'],['tops','PA y cajas, sin subs'],['subs','Solo subs']])}
+${SEL('Modo','map.mode',[['band','Banda de 1/3 de octava'],['freq','Frecuencia única']],{h:'La frecuencia única muestra las interferencias. La banda se parece más a lo que se escucha.'})}
+${SEL('Escala','map.scale',[['auto','Automática (máximo arriba)'],['fixed','Nivel fijo']],{rb:1})}${S.map.scale==='fixed'?NUM('Nivel de referencia','map.ref',{st:1,u:'dB'}):''}</section>
+<section><h3>Posición de escucha</h3><div class="mini"><label>x (m)<input type="number" step="0.5" data-p="map.lp.x" id="f-map-lp-x" value="${S.map.lp.x}"></label><label>y (m)<input type="number" step="0.5" data-p="map.lp.y" id="f-map-lp-y" value="${S.map.lp.y}"></label></div>
+<div class="cvbox" style="height:170px"><canvas id="cvSpec"></canvas></div></section>
+<section><p class="sub">El armado se carga en Montaje y las cajas repartidas en Cajas distribuidas. El mapa usa los delays que están cargados ahí. Para que una caja aparezca, tiene que tener sus datos completos en la biblioteca.</p></section>`;
+function drawVenue(ctx,t,o={}){const W=S.venue.w,D=S.venue.d;ctx.lineWidth=1;
+ ctx.fillStyle=K.panel2;ctx.fillRect(t.X(-W/2),t.Y(-S.venue.stage),W*t.s,S.venue.stage*t.s);font(ctx,12);ctx.fillStyle=K.mute;ctx.fillText('Escenario',t.X(-W/2)+6,t.Y(-S.venue.stage)+16);
+ ctx.strokeStyle=K.sum;ctx.globalAlpha=.55;ctx.setLineDash([5,4]);ctx.strokeRect(t.X(-W/2),t.Y(S.venue.aud),W*t.s,(D-S.venue.aud)*t.s);ctx.setLineDash([]);ctx.globalAlpha=1;
+ ctx.strokeStyle=K.dim;ctx.strokeRect(t.X(-W/2),t.Y(-S.venue.stage),W*t.s,(D+S.venue.stage)*t.s);
+ if(o.foh!==false){ctx.strokeStyle=K.fg;ctx.strokeRect(t.X(S.venue.fohX-1.5),t.Y(S.venue.fohY-1),3*t.s,2*t.s);ctx.fillStyle=K.fg;ctx.fillText('FOH',t.X(S.venue.fohX-1.5),t.Y(S.venue.fohY-1)-4);}
+ if(o.tops!==false&&S.pa.type!=='none')for(const sx of[-1,1]){const yaw=-sx*S.la.toe*deg,x=sx*S.la.x,y=S.la.y;ctx.save();ctx.translate(t.X(x),t.Y(y));ctx.rotate(-yaw);ctx.fillStyle=K.acc;ctx.fillRect(-0.4*t.s-3,-4,0.8*t.s+6,8);ctx.strokeStyle=K.acc;ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(0,2.5*t.s+10);ctx.stroke();ctx.restore();}
+ if(o.subs!==false&&S.subs.on)for(const s of S.subs.list){const X=t.X(s.x),Y=t.Y(s.y),r=Math.max(3,0.3*t.s);ctx.fillStyle=K.sub;ctx.fillRect(X-r,Y-r,2*r,2*r);ctx.strokeStyle=K.bg;ctx.lineWidth=2;ctx.beginPath();const dy=+s.ang===180?-1:1;ctx.moveTo(X,Y);ctx.lineTo(X,Y+dy*r);ctx.stroke();ctx.lineWidth=1;}
+ if(o.ps!==false)for(const p of S.ps){const a=p.yaw*deg;ctx.save();ctx.translate(t.X(p.x),t.Y(p.y));ctx.rotate(-a);ctx.fillStyle=K.sum;ctx.beginPath();ctx.moveTo(0,8);ctx.lineTo(-6,-4);ctx.lineTo(6,-4);ctx.closePath();ctx.fill();ctx.restore();}}
+UPD.map=function(){const v=S.venue,mp=S.map;const md=buildModel({});const wb=$('#warnBox');
+ const md2=mp.show==='tops'?buildModel({subs:false}):mp.show==='subs'?buildModel({tops:false,ps:false}):md;wb.innerHTML=warnHTML(md.warn,md.warn.some(t=>t.includes('datos')));
+ const cell=Math.max(S.env.cell,Math.sqrt(v.w*v.d/6000));const xs=[],ys=[];for(let x=-v.w/2+cell/2;x<v.w/2;x+=cell)xs.push(x);for(let y=cell/2;y<v.d;y+=cell)ys.push(y);
+ if(!md2.src.length){MAP=null;blank('cvMap','No hay fuentes con datos completos para este modo');$('#mapRo').innerHTML='';return;}
+ const pts=new Float32Array(xs.length*ys.length*3);let q=0;for(const y of ys)for(const x of xs){pts[q++]=x;pts[q++]=y;pts[q++]=S.env.earH;}
+ const E=gridE(md2,pts,bandFreqs(mp.band,mp.mode));const aud=[];for(let j=0;j<ys.length;j++)if(ys[j]>=v.aud)for(let i=0;i<xs.length;i++)aud.push(E[j*xs.length+i]);
+ aud.sort((a,b)=>a-b);const mx=aud[aud.length-1],mn=aud[0],med=aud[Math.floor(aud.length/2)];const within=aud.filter(x=>Math.abs(x-med)<=3).length/aud.length*100;
+ const top=mp.scale==='fixed'?mp.ref:mx;MAP={xs,ys,E,top,cell,img:heatImg(E,xs.length,ys.length,top),hover:null};
+ $('#mapRo').innerHTML=[['Banda',`${bandLbl(mp.band)}${mp.mode==='freq'?' (única)':''}`],['Máximo en público',fmt(mx,1)+' dB'],['Mínimo en público',fmt(mn,1)+' dB'],['Mediana',fmt(med,1)+' dB'],
+  ['Dentro de ±3 dB de la mediana',fmt(within,0)+' %',within>=80?'ok':within>=60?'warn':'bad']].map(([a,b,c])=>`<div class="ro ${c||''}"><span>${a}</span><b>${b}</b></div>`).join('');
+ drawMap();drawSpec(md);};
+function drawMap(){const g=cv('cvMap');if(!g||!MAP)return;const v=S.venue;const xr=[-v.w/2,v.w/2],yr=[-v.stage,v.d];const t=topTf(g.w,g.h,xr,yr,16,74,16,16);MAP.t=t;const{ctx}=g;
+ ctx.imageSmoothingEnabled=false;ctx.drawImage(MAP.img,t.X(xr[0]),t.Y(0),MAP.xs.length*MAP.cell*t.s,MAP.ys.length*MAP.cell*t.s);drawVenue(ctx,t);
+ legend(ctx,g.w-60,34,MAP.top,Math.min(240,g.h-60),true);
+ const lp=S.map.lp;ctx.strokeStyle=K.fg;ctx.lineWidth=2;ctx.beginPath();ctx.arc(t.X(lp.x),t.Y(lp.y),7,0,7);ctx.stroke();ctx.beginPath();ctx.moveTo(t.X(lp.x)-11,t.Y(lp.y));ctx.lineTo(t.X(lp.x)+11,t.Y(lp.y));ctx.moveTo(t.X(lp.x),t.Y(lp.y)-11);ctx.lineTo(t.X(lp.x),t.Y(lp.y)+11);ctx.stroke();ctx.lineWidth=1;
+ if(MAP.hover){const{x,y}=MAP.hover;const i=Math.floor((x+v.w/2)/MAP.cell),j=Math.floor(y/MAP.cell);if(i>=0&&j>=0&&i<MAP.xs.length&&j<MAP.ys.length){const val=MAP.E[j*MAP.xs.length+i];
+  const txt=`x ${fmt(x,1)} m   y ${fmt(y,1)} m   ${fmt(val,1)} dB`;font(ctx,13,600);const tw=ctx.measureText(txt).width;ctx.fillStyle=K.panel;ctx.globalAlpha=.92;ctx.fillRect(10,g.h-36,tw+18,26);ctx.globalAlpha=1;ctx.fillStyle=K.fg;ctx.fillText(txt,19,g.h-18);}}}
+function drawSpec(md){const g=cv('cvSpec');if(!g)return;const lp=S.map.lp;const vals=BANDS.map(b=>energyAt(lp.x,lp.y,S.env.earH,md,bandFreqs(b,'band')));
+ const mx=Math.ceil(Math.max(...vals)/6)*6;const F=frame(g,{x0:0,x1:8,y0:mx-36,y1:mx,xt:[],yt:[mx-36,mx-24,mx-12,mx],pl:36,pb:22,pt:10,pr:6});const bw=F.iw/8;
+ vals.forEach((v,i)=>{const x=F.pl+i*bw+3,y=F.Y(Math.max(v,mx-36));g.ctx.fillStyle=BANDS[i]===S.map.band?K.acc:K.mute;g.ctx.fillRect(x,y,bw-6,F.Y(mx-36)-y);});
+ font(g.ctx,10.5);g.ctx.fillStyle=K.mute;g.ctx.textAlign='center';BANDS.forEach((b,i)=>g.ctx.fillText(b>=1000?b/1000+'k':b,F.pl+i*bw+bw/2,g.h-6));g.ctx.textAlign='left';}
+
+/* ---- Alineación ---- */
+WORK.align=()=>`<div class="vh"><h1>Alineación PA + sub</h1><p>Compara la llegada de los tops y los subs en el punto de referencia. Usa el line array y los subs del proyecto. Mové el delay y la polaridad hasta que las fases coincidan en el cruce.</p></div>
+<div id="warnBox"></div><div class="res" id="alRes"></div>
+<div class="cvbox h-sm" style="height:190px"><canvas id="cvGeo"></canvas></div>
+<div class="legend"><span><i style="background:var(--acc)"></i>Tops</span><span><i style="background:var(--sub)"></i>Subs</span><span><i style="background:var(--sum)"></i>Suma</span><span>${badge}</span></div>
+<div class="cvbox h-chart"><canvas id="cvMag"></canvas></div><div class="cvbox h-chart" style="height:220px"><canvas id="cvPh"></canvas></div>
+<div id="alOff"></div>${HOW}`;
+PROPS.align=()=>`<section><h3>Cruce</h3>${RNG('Frecuencia de cruce','xo.fc',{mn:40,mx:200,st:1,u:'Hz'})}${SEL('Filtro de tops (pasa altos)','xo.hp',FILTNAMES)}${SEL('Filtro de subs (pasa bajos)','xo.lp',FILTNAMES)}</section>
+<section><h3>Subs</h3>${NUM('Delay','xo.subDelay',{st:0.01,mn:0,u:'ms'})}${SEL('Polaridad','xo.subPol',POL,{num:1})}${RNG('Ganancia','xo.subGain',{mn:-15,mx:15,st:0.5,u:'dB'})}</section>
+<section><h3>Tops</h3>${NUM('Delay','xo.topDelay',{st:0.01,mn:0,u:'ms'})}${SEL('Polaridad','xo.topPol',POL,{num:1})}</section>
+<section><h3>Punto de referencia</h3>${RNG('Distancia','xo.refD',{mn:2,mx:Math.max(10,S.venue.d),st:0.5,u:'m'})}${RNG('Posición lateral','xo.refX',{mn:-S.venue.w/2,mx:S.venue.w/2,st:0.5,u:'m',h:'0 es el centro.'})}
+<button class="btn pri" data-act="opt">Buscar alineación</button><p class="sub">Busca el delay y la polaridad que dan la mejor suma entre media octava abajo y una octava arriba del cruce, eligiendo la opción más cercana al delay geométrico.</p></section>`;
+function alignPts(){return{x:S.xo.refX,y:S.xo.refD,z:S.env.earH};}
+function alignCalc(R){const mt=buildModel({subs:false,ps:false}),ms=buildModel({tops:false,ps:false});return{mt,ms,R};}
+UPD.align=function(){['xo.subDelay','xo.topDelay','xo.subPol'].forEach(p=>$$(`[data-p="${p}"]`).forEach(el=>el.value=get(p)));const wb=$('#warnBox'),lc=cab(S.la.cab),sc=cab(S.subs.cab);const errs=[];
+ if(!topsReady())errs.push(S.pa.type==='none'?'No hay PA principal en Montaje.':'Al PA le faltan datos en la biblioteca para calcular la fase.');if(!S.subs.on||!S.subs.list.length)errs.push('No hay subs activos en el proyecto.');else if(!sc||missing(sc).length)errs.push('El sub no tiene todos los datos.');
+ if(errs.length){wb.innerHTML=warnHTML(errs,true);$('#alRes').innerHTML='';$('#alOff').innerHTML='';['cvGeo','cvMag','cvPh'].forEach(i=>blank(i,'Faltan datos'));return;}
+ wb.innerHTML='';const R=alignPts();const{mt,ms}=alignCalc(R);const gi=geoAt(R);const c=C();const tau0=gi.dT/c;
+ const fs=[];for(let i=0;i<=180;i++)fs.push(20*Math.pow(1000/20,i/180));
+ const T=[],Sb=[],Sm=[];for(const f of fs){const w=2*Math.PI*f*tau0,rot=[Math.cos(w),Math.sin(w)];const t=cm(pAt(R.x,R.y,R.z,mt,prep(mt,f)),rot),s=cm(pAt(R.x,R.y,R.z,ms,prep(ms,f)),rot);T.push(t);Sb.push(s);Sm.push([t[0]+s[0],t[1]+s[1]]);}
+ const mag=z=>20*log10(Math.hypot(z[0],z[1])+1e-9),ph=z=>Math.atan2(z[1],z[0])/deg;
+ let ref=0,nr=0;fs.forEach((f,i)=>{if(f>=300&&f<=800){ref+=mag(T[i]);nr++;}});ref/=nr;
+ const fc=S.xo.fc;const pc=(()=>{const f=fc,w=2*Math.PI*f*tau0,rot=[Math.cos(w),Math.sin(w)];const t=cm(pAt(R.x,R.y,R.z,mt,prep(mt,f)),rot),s=cm(pAt(R.x,R.y,R.z,ms,prep(ms,f)),rot);return{t,s};})();
+ let dph=ph(pc.t)-ph(pc.s);dph=((dph+540)%360)-180;const eff=20*log10(Math.hypot(pc.t[0]+pc.s[0],pc.t[1]+pc.s[1])/(Math.hypot(...pc.t)+Math.hypot(...pc.s)));
+ const lvl=mag(pc.s)-mag(pc.t);const fsr=S.env.fs;
+ $('#alRes').innerHTML=`<div class="big"><span>Recorrido tops / subs</span><b>${fmt(gi.dT,2)} / ${fmt(gi.dS,2)} m</b><small>Diferencia ${fmt(Math.abs(gi.dT-gi.dS),2)} m</small></div>
+<div class="big"><span>Delay geométrico</span><b>${fmt(Math.abs(gi.ms),2)} ms</b><small>${gi.ms>=0?'Los subs llegan antes: el delay va en los subs':'Los tops llegan antes: el delay va en los tops'}</small></div>
+<div class="big ${Math.abs(dph)<=30?'hl':''}"><span>Diferencia de fase en ${fc} Hz</span><b style="color:${Math.abs(dph)<=30?'var(--ok)':Math.abs(dph)<=70?'var(--warn)':'var(--bad)'}">${sgn(dph,0)}°</b><small>Nivel sub respecto de tops: ${sgn(lvl,1)} dB</small></div>
+<div class="big"><span>Suma en el cruce</span><b style="color:${eff>-1.5?'var(--ok)':eff>-4?'var(--warn)':'var(--bad)'}">${fmt(eff,1)} dB</b><small>0 dB es la suma perfecta</small></div>
+<div class="big hl"><span>Cargar en el procesador</span><b>${fmt(S.xo.subDelay,2)} / ${fmt(S.xo.topDelay,2)} ms</b><small>Subs / tops: ${Math.round(S.xo.subDelay*fsr/1000)} / ${Math.round(S.xo.topDelay*fsr/1000)} muestras a ${fsr/1000} kHz. Polaridad subs ${S.xo.subPol===1?'normal':'invertida'}</small></div>`;
+ // geometría
+ {const g=cv('cvGeo');if(g)drawSide(g.ctx,0,g.w,g.h,R);}
+ // magnitud
+ const xt=[20,31.5,50,63,80,100,125,160,200,315,500,1000];const g2=cv('cvMag');const F=frame(g2,{x0:20,x1:1000,log:1,y0:-30,y1:12,xt,yt:[-30,-24,-18,-12,-6,0,6,12],xf:v=>v>=1000?'1k':v,yl:'dB'});
+ const shade=(gg,FF)=>{gg.ctx.fillStyle=K.mute;gg.ctx.globalAlpha=.07;gg.ctx.fillRect(FF.X(fc/2),FF.pt,FF.X(fc*2)-FF.X(fc/2),FF.ih);gg.ctx.globalAlpha=1;gg.ctx.strokeStyle=K.dim;gg.ctx.setLineDash([3,3]);gg.ctx.beginPath();gg.ctx.moveTo(FF.X(fc),FF.pt);gg.ctx.lineTo(FF.X(fc),FF.pt+FF.ih);gg.ctx.stroke();gg.ctx.setLineDash([]);};
+ shade(g2,F);const XS=fs.map(F.X);line(g2.ctx,XS,T.map(z=>F.Y(Math.max(mag(z)-ref,-31))),K.acc,2);line(g2.ctx,XS,Sb.map(z=>F.Y(Math.max(mag(z)-ref,-31))),K.sub,2);line(g2.ctx,XS,Sm.map(z=>F.Y(Math.max(mag(z)-ref,-31))),K.sum,2.4);
+ font(g2.ctx,12);g2.ctx.fillStyle=K.dim;g2.ctx.fillText(`Cruce ${fc} Hz`,F.X(fc)+5,F.pt+14);
+ // fase
+ const g3=cv('cvPh');const F3=frame(g3,{x0:20,x1:1000,log:1,y0:-180,y1:180,xt,yt:[-180,-90,0,90,180],xf:v=>v>=1000?'1k':v,yf:v=>v+'°',yl:'Fase'});shade(g3,F3);
+ const wrapL=(arr,col,mk)=>{const xs=[],ys=[];arr.forEach((z,i)=>{const m=mk[i];const p=ph(z);if(i&&Math.abs(p-ph(arr[i-1]))>180){xs.push(NaN);ys.push(NaN);}xs.push(XS[i]);ys.push(m?F3.Y(p):NaN);});line(g3.ctx,xs,ys,col,2);};
+ const vis=a=>a.map(z=>mag(z)-ref>-24);wrapL(T,K.acc,vis(T));wrapL(Sb,K.sub,vis(Sb));
+ font(g3.ctx,12);g3.ctx.fillStyle=K.dim;g3.ctx.fillText('Se oculta la fase donde el nivel cae más de 24 dB',F3.pl+8,F3.pt+14);
+ // fuera del punto
+ const pos=[];[5,10,20,30,S.venue.d-1].filter((d,i,a)=>d>S.venue.aud&&d<S.venue.d&&a.indexOf(d)===i).forEach(d=>pos.push({n:`Centro, ${fmt(d,0)} m`,x:0,y:d}));pos.push({n:`Lateral izq., ${fmt(S.xo.refD,0)} m`,x:-S.venue.w*0.4,y:S.xo.refD},{n:`Lateral der., ${fmt(S.xo.refD,0)} m`,x:S.venue.w*0.4,y:S.xo.refD});
+ const pt=prep(mt,fc),pS=prep(ms,fc);const rows=pos.map(p=>{const t=pAt(p.x,p.y,S.env.earH,mt,pt),s=pAt(p.x,p.y,S.env.earH,ms,pS);const e=20*log10(Math.hypot(t[0]+s[0],t[1]+s[1])/(Math.hypot(...t)+Math.hypot(...s)));return{...p,e};});
+ $('#alOff').innerHTML=`<div class="big"><span>Suma en ${fc} Hz en otros puntos del público</span><div class="tblwrap"><table class="tbl"><tbody>${rows.map(r=>`<tr><td>${r.n}</td><td style="text-align:right"><span class="st ${r.e>-1.5?'ok':r.e>-4?'warn':'bad'}">${fmt(r.e,1)} dB</span></td></tr>`).join('')}</tbody></table></div><small>La alineación es exacta en un solo punto. Lejos de la referencia la diferencia de recorridos cambia y la suma empeora.</small></div>`;};
+function optimizeAlign(){const c=phaseOpt(alignPts());if(!c){toast('Faltan datos de las cajas para calcular la fase');return;}S.mt.auto=false;applyD(c);renderProps();schedule();
+ toast(`Delay ${c.d>=0?'en subs':'en tops'} ${fmt(Math.abs(c.d),2)} ms, polaridad ${c.pol===1?'normal':'invertida'}`);}
+
+/* ---- Calculadora ---- */
+const CV={};
+const CALC=[{id:'mt',t:'Distancia y tiempo',ins:[['m','Distancia','m',10],['ms','Tiempo','ms',10]],o:(v,c)=>[[`${fmt(v.m,2)} m tardan`,fmt(v.m/c*1000,2)+' ms'],[`${fmt(v.ms,2)} ms equivalen a`,fmt(v.ms*c/1000,2)+' m'],[`A ${fmt(S.env.temp,0)} °C`,fmt(c,1)+' m/s']]},
+{id:'c',t:'Velocidad del sonido',ins:[['t','Temperatura','°C',22]],o:v=>{const c=331.3+0.606*v.t;return[['Velocidad',fmt(c,1)+' m/s'],['Cada metro',fmt(1000/c,3)+' ms'],['Cada milisegundo',fmt(c/1000,3)+' m']];}},
+{id:'loss',t:'Pérdida por distancia',ins:[['L','Nivel medido','dB',100],['d1','Medido a','m',1],['d2','Nuevo punto a','m',20]],o:v=>[['Fuente puntual',fmt(v.L-20*log10(v.d2/v.d1),1)+' dB'],['Fuente lineal ideal',fmt(v.L-10*log10(v.d2/v.d1),1)+' dB'],['Pérdida puntual',fmt(20*log10(v.d2/v.d1),1)+' dB']]},
+{id:'db',t:'Decibeles',ins:[['p','Relación de potencia','×',2],['v','Relación de tensión','×',2],['x','Decibeles','dB',6]],o:v=>[[`Potencia × ${fmt(v.p,2)}`,sgn(10*log10(v.p),2)+' dB'],[`Tensión × ${fmt(v.v,2)}`,sgn(20*log10(v.v),2)+' dB'],[`${fmt(v.x,1)} dB en potencia`,'× '+fmt(Math.pow(10,v.x/10),2)],[`${fmt(v.x,1)} dB en tensión`,'× '+fmt(Math.pow(10,v.x/20),2)]]},
+{id:'sum',t:'Suma de fuentes',ins:[['n','Cantidad de cajas','',2],['a','Nivel A','dB',100],['b','Nivel B','dB',97]],o:v=>[['Coherentes, en fase',sgn(20*log10(v.n),1)+' dB'],['Sin coherencia',sgn(10*log10(v.n),1)+' dB'],['A + B sin coherencia',fmt(10*log10(Math.pow(10,v.a/10)+Math.pow(10,v.b/10)),1)+' dB']]},
+{id:'spl',t:'Potencia y sensibilidad',ins:[['s','Sensibilidad 1 W / 1 m','dB',97],['w','Potencia','W',500],['d','Distancia','m',20]],o:v=>{const L=v.s+10*log10(v.w);return[['A 1 m',fmt(L,1)+' dB'],[`A ${fmt(v.d,0)} m`,fmt(L-20*log10(v.d),1)+' dB'],['Duplicar potencia suma','+3,0 dB']];}},
+{id:'wl',t:'Frecuencia y longitud de onda',ins:[['f','Frecuencia','Hz',100]],o:(v,c)=>[['Longitud de onda',fmt(c/v.f,3)+' m'],['Media onda',fmt(c/v.f/2,3)+' m'],['Cuarto de onda',fmt(c/v.f/4,3)+' m'],['Período',fmt(1000/v.f,2)+' ms']]},
+{id:'tt',t:'Delay según temperatura',ins:[['d','Distancia','m',30],['t1','Temperatura 1','°C',15],['t2','Temperatura 2','°C',32]],o:v=>{const a=v.d/(331.3+0.606*v.t1)*1000,b=v.d/(331.3+0.606*v.t2)*1000;return[[`A ${fmt(v.t1,0)} °C`,fmt(a,2)+' ms'],[`A ${fmt(v.t2,0)} °C`,fmt(b,2)+' ms'],['Diferencia',fmt(a-b,2)+' ms']];}}];
+CALC.forEach(k=>{CV[k.id]={};k.ins.forEach(([n,,,d])=>CV[k.id][n]=d);});
+WORK.calc=()=>`<div class="vh"><h1>Calculadora rápida</h1><p>Herramientas sueltas para el día del evento. Las que dependen de la velocidad del sonido usan la temperatura de Ajustes.</p></div>
+<div class="cards">${CALC.map(k=>`<div class="card"><h3>${k.t}</h3>${k.ins.map(([n,l,u])=>`<div class="f"><label for="c-${k.id}-${n}">${l}</label><div class="rw"><input type="number" id="c-${k.id}-${n}" data-cc="${k.id}.${n}" value="${CV[k.id][n]}" step="any"><em>${u}</em></div></div>`).join('')}<div class="out" id="co-${k.id}"></div></div>`).join('')}</div>`;
+PROPS.calc=()=>`<section><h3>Ambiente</h3>${NUM('Temperatura','env.temp',{st:1,u:'°C'})}<p class="sub">Velocidad del sonido: ${fmt(C(),1)} m/s</p></section>`;
+UPD.calc=function(){const c=C();CALC.forEach(k=>{const el=$('#co-'+k.id);if(el)el.innerHTML=k.o(CV[k.id],c).map(([a,b])=>`<div><span>${a}</span><b>${b}</b></div>`).join('');});};
+
+/* ---- Biblioteca ---- */
+WORK.lib=()=>{const list=LIB.filter(c=>libFilter==='all'||c.type===libFilter);return`<div class="vh"><h1>Biblioteca de cajas</h1><p>Cargá tus cajas con los datos de la ficha técnica. La app no completa datos que falten: una caja incompleta no entra en la predicción hasta que la completes.</p></div>
+<div class="lib-head"><div class="chips">${[['all','Todas'],['la','Line array'],['ps','Point source'],['sub','Subwoofers'],['drv','Drivers']].map(([v,t])=>`<button class="chip${libFilter===v?' on':''}" data-act="lib-filter" data-v="${v}">${t}</button>`).join('')}</div></div>
+<div class="cvbox" style="min-height:0"><div class="tblwrap"><table class="tbl"><thead><tr><th>Modelo</th><th>Tipo</th><th>Sens.</th><th>RMS</th><th>Cobertura</th><th>Estado</th></tr></thead><tbody>
+${list.map(c=>{const m=missing(c);return`<tr data-id="${c.id}" class="${c.id===libSel?'sel':''}" tabindex="0"><td><b>${esc(cname(c))}</b>${c.example?' <span class="st mut">ejemplo</span>':''}</td><td>${TYPES[c.type].name}${c.f.act?', activa':''}</td><td>${isNum(c.f.sens)?fmt(c.f.sens,1)+' dB':'–'}</td><td>${isNum(c.f.rms)?fmt(c.f.rms,0)+' W':'–'}</td><td>${isNum(c.f.hCov)?fmt(c.f.hCov,0)+'° × '+fmt(c.f.vCov,0)+'°':'–'}</td><td>${m.length?`<span class="st warn">faltan ${m.length}</span>`:'<span class="st ok">completa</span>'}</td></tr>`;}).join('')||'<tr><td colspan="6" class="empty">No hay cajas de este tipo.</td></tr>'}
+</tbody></table></div></div>`;};
+PROPS.lib=()=>{const c=cab(libSel);const nw=`<section><h3>Nueva caja</h3><div class="btnrow">${Object.entries(TYPES).map(([k,v])=>`<button class="btn sm" data-act="lib-new" data-v="${k}">${v.name}</button>`).join('')}</div>
+<div class="btnrow"><button class="btn sm ghost" data-act="lib-io">Importar o copiar biblioteca</button></div></section>`;
+ if(!c)return nw+`<section><p class="sub">Elegí una caja de la lista para editarla.</p></section>`;const m=missing(c);
+ return`<section><h3>${esc(cname(c))}</h3><p class="sub">${TYPES[c.type].name}${m.length?`. Para predecir faltan: ${m.join(', ')}.`:'. Datos completos para predecir.'}</p>
+<div class="f"><label for="l-brand">Marca</label><input type="text" id="l-brand" data-l="brand" value="${esc(c.brand)}" style="width:190px"></div>
+<div class="f"><label for="l-model">Modelo</label><input type="text" id="l-model" data-l="model" value="${esc(c.model)}" style="width:190px"></div>
+${TYPES[c.type].f.map(k=>{const[l,u,opts]=FD[k];const v=c.f[k];const rq=req(c).includes(k);const lab=`${l}${rq?' *':''}`;
+ if(u==='chk')return`<div class="f"><label for="l-${k}">${l}</label><input type="checkbox" id="l-${k}" data-l="f.${k}"${v?' checked':''}>${c.type==='drv'?'':HLP('En una caja activa la predicción usa el SPL máximo en lugar de sensibilidad y potencia.')}</div>`;
+ if(u==='txt')return`<div class="f"><label for="l-${k}">${lab}</label><input type="text" id="l-${k}" data-l="f.${k}" value="${esc(v)}" style="width:190px"></div>`;
+ if(u==='area')return`<div class="f"><label for="l-${k}">${lab}</label><textarea id="l-${k}" data-l="f.${k}" style="grid-column:1/-1;min-height:70px;font:14px var(--body)">${esc(v)}</textarea></div>`;
+ if(u==='sel')return`<div class="f"><label for="l-${k}">${lab}</label><select id="l-${k}" data-l="f.${k}">${['',...opts].map(o=>`<option${o===v?' selected':''}>${o}</option>`).join('')}</select></div>`;
+ return`<div class="f"><label for="l-${k}">${lab}</label><div class="rw"><input type="number" id="l-${k}" data-l="f.${k}" data-n value="${isNum(v)?v:''}" placeholder="sin dato" step="any"><em>${u}</em></div></div>`;}).join('')}
+<p class="sub">Los campos con * los necesita la predicción.</p>
+<div class="btnrow"><button class="btn sm" data-act="lib-dup">Duplicar</button><button class="btn sm danger" data-act="lib-del" id="libDel">Borrar</button></div></section>`+nw;};
+UPD.lib=()=>{};
+
+/* ================= render ================= */
+function renderProps(){const sc=$('#props').scrollTop;$('#props').innerHTML=PROPS[view]();$('#props').scrollTop=sc;}
+function renderAll(){document.body.className='v-'+view;renderNav();$('#work').innerHTML=WORK[view]();$('#props').innerHTML=PROPS[view]();$('#props').scrollTop=0;$('#pname').value=S.meta.name;requestAnimationFrame(()=>update());}
+function update(){try{syncAuto();syncDist();UPD[view]();}catch(e){console.error(e);}}
+let tmr,stmr;function schedule(){clearTimeout(tmr);tmr=setTimeout(update,['map','subs','la','montaje'].includes(view)?90:20);clearTimeout(stmr);stmr=setTimeout(()=>store.set('tpa.cur',S),400);}
+function go(v){if(!WORK[v])v='montaje';view=v;try{if(location.hash!=='#'+v)history.replaceState(null,'','#'+v);}catch(e){}renderAll();$('#work').scrollTop=0;}
+
+function changed(p,rb){
+ const gen=['subs.cfg','subs.n','subs.cab','subs.y','subs.s','subs.dsep','subs.loc','subs.row'];
+ if(gen.includes(p)&&S.subs.cfg!=='custom'){S.subs.list=genSubs(S.subs);if(!rb)renderSubTable();}
+ if(p==='la.x'&&S.subs.cfg!=='custom'&&(S.subs.cfg==='lr'||S.subs.loc==='lr')){S.subs.list=genSubs(S.subs);renderSubTable();}
+ if(p.startsWith('subs.list.')&&S.subs.cfg!=='custom'){S.subs.cfg='custom';const el=$('#f-subs-cfg');if(el)el.value='custom';}
+ if(p==='la.x'){const h=$('#f-la-x')?.closest('.f')?.querySelector('.help');if(h)h.textContent=`Separación entre arrays: ${fmt(S.la.x*2,1)} m.`;}
+ if(p==='subs.dsep'){const h=$('#f-subs-dsep')?.closest('.f')?.querySelector('.help');if(h)h.textContent=`Rinde mejor cerca de ${fmt(C()/(4*S.subs.dsep),0)} Hz (un cuarto de longitud de onda).`;}
+ if(['xo.subDelay','xo.topDelay','xo.subPol'].includes(p))S.mt.auto=false;
+ if((p==='xo.refD'||p==='xo.refX')&&view==='align')S.mt.ref='custom';
+ if(p==='pa.type'&&S.pa.type==='none')S.dist.ref='first';
+ if(rb)renderProps();schedule();}
+
+document.addEventListener('input',e=>{const t=e.target;
+ if(t.dataset.cc){const[k,n]=t.dataset.cc.split('.');const v=parseFloat(t.value);if(isFinite(v)){CV[k][n]=v;UPD.calc();}return;}
+ if(t.dataset.l!==undefined){const c=cab(libSel);if(!c)return;const ks=t.dataset.l.split('.');let v=t.value;if(t.type==='checkbox')v=t.checked;else if(t.hasAttribute('data-n'))v=t.value===''?null:parseFloat(t.value);
+  if(ks[0]==='f'){if(v===null||v==='')delete c.f[ks[1]];else c.f[ks[1]]=v;}else c[ks[0]]=v;c.example=false;saveLib();if(ks[1]==='act')renderProps();
+  clearTimeout(stmr);stmr=setTimeout(()=>{const sc=$('#work').scrollTop;$('#work').innerHTML=WORK.lib();$('#work').scrollTop=sc;const sub=$('#props .sub');if(sub){const m=missing(c);sub.textContent=`${TYPES[c.type].name}${m.length?`. Para predecir faltan: ${m.join(', ')}.`:'. Datos completos para predecir.'}`;}},250);return;}
+ const p=t.dataset.p;if(!p)return;let v;
+ if(t.type==='checkbox')v=t.checked;else if(t.type==='number'||t.type==='range'){v=parseFloat(t.value);if(!isFinite(v))return;}else if(t.hasAttribute('data-num'))v=parseFloat(t.value);else v=t.value;
+ set(p,v);
+ $$(`[data-p="${p}"]`).forEach(o=>{if(o!==t&&o.type!=='checkbox')o.value=v;});
+ if(p==='meta.name'){clearTimeout(stmr);stmr=setTimeout(()=>store.set('tpa.cur',S),400);return;}
+ if(p.startsWith('meta.'))return;
+ changed(p,t.hasAttribute('data-rb'));});
+
+document.addEventListener('click',e=>{const b=e.target.closest('[data-view],[data-act],[data-set],tr[data-id]');if(!b)return;
+ if(b.matches('tr[data-id]')){libSel=b.dataset.id;$$('tr[data-id]').forEach(r=>r.classList.toggle('sel',r.dataset.id===libSel));renderProps();return;}
+ if(b.dataset.view){closeModal();go(b.dataset.view);return;}
+ if(b.dataset.set){const p=b.dataset.set;set(p,+b.dataset.v);$$(`[data-set="${p}"]`).forEach(x=>x.classList.toggle('on',x===b));changed(p);return;}
+ const a=b.dataset.act,i=+b.dataset.i;if(b.dataset.mclose)closeModal();const la=S.la,mx=(cab(la.cab)?.f.maxSplay)||10;
+ const A={
+  'pre-j':()=>{for(let k=0;k<5;k++)la.splay[k]=Math.min(mx,+(0.5+k*k*0.45+k*0.6).toFixed(1));renderProps();schedule();},
+  'pre-const':()=>{for(let k=0;k<5;k++)la.splay[k]=Math.min(mx,3);renderProps();schedule();},
+  'pre-flat':()=>{for(let k=0;k<5;k++)la.splay[k]=0;renderProps();schedule();},
+  'sub-add':()=>{const l=S.subs.list,last=l[l.length-1]||{x:0,y:S.subs.y,z:0.3};l.push({x:+(last.x+0.7).toFixed(2),y:last.y,z:last.z,ang:0,delay:0,pol:1,gain:0});S.subs.cfg='custom';renderProps();schedule();},
+  'sub-del':()=>{S.subs.list.splice(i,1);S.subs.cfg='custom';renderProps();schedule();},
+  'ps-del':()=>{S.ps.splice(i,1);renderProps();schedule();},
+  'dist-add':()=>{const l=S.ps[S.ps.length-1],G=S.dist.gen;S.ps.push({role:'Delay',cab:G.cab,x:l?l.x:0,y:l?+(l.y+G.step).toFixed(1):G.y0,z:G.z,yaw:l?l.yaw:0,tilt:l?l.tilt:0,gain:0,delay:0,pol:1});renderProps();schedule();},
+  'dist-clear':()=>{if(!b.dataset.ok){b.dataset.ok='1';b.textContent='Confirmar borrado';return;}S.ps=[];renderProps();schedule();},
+  'dist-gen':()=>{const G=S.dist.gen,xw=S.venue.w/2-0.6;let n=0;for(let k=0;k<G.n;k++){const y=+(G.y0+k*G.step).toFixed(2);if(y>S.venue.d)break;const xs=G.pos==='both'?[[-xw,15],[xw,-15]]:G.pos==='left'?[[-xw,15]]:G.pos==='right'?[[xw,-15]]:[[0,0]];
+    for(const[x,yaw]of xs){S.ps.push({role:'Delay',cab:G.cab,x:+x.toFixed(2),y,z:G.z,yaw,tilt:Math.max(0,Math.round(Math.atan2(G.z-S.env.earH,S.dist.behind+3)/deg)),gain:0,delay:0,pol:1});n++;}}
+    renderProps();schedule();toast(n?`${n} cajas agregadas`:'La primera posición queda fuera del recinto');},
+  'mt-phase':()=>{const c=phaseOpt(refPoint());if(c){S.mt.auto=false;applyD(c);schedule();}},
+  'mt-geo':()=>{S.mt.auto=true;schedule();},
+  'tpl-save':()=>{const k=b.dataset.v,T=store.get('tpa.tpl',{});if(T[k]&&!b.dataset.ok){b.dataset.ok='1';b.textContent='Reemplazar';return;}T[k]={desc:rigDesc(),pa:clone(S.pa),la:clone(S.la),subs:clone(S.subs),fc:S.xo.fc,route:S.mt.route};store.set('tpa.tpl',T);renderProps();toast('Armado guardado');},
+  'tpl-load':()=>{const t=store.get('tpa.tpl',{})[b.dataset.v];if(!t)return;S.pa=merge(DEF().pa,t.pa);S.la=merge(DEF().la,t.la);S.subs=merge(DEF().subs,t.subs);S.xo.fc=t.fc;S.mt.route=t.route||'chain';S.mt.auto=true;renderAll();schedule();toast('Armado cargado');},
+  'opt':optimizeAlign,
+  'lib-filter':()=>{libFilter=b.dataset.v;$('#work').innerHTML=WORK.lib();},
+  'lib-new':()=>{const t=b.dataset.v;const c={id:'c'+Date.now().toString(36),type:t,brand:'',model:`Nuevo ${TYPES[t].name.toLowerCase()}`,f:{}};LIB.push(c);libSel=c.id;libFilter='all';saveLib();renderAll();$('#l-brand')?.focus();},
+  'lib-dup':()=>{const c=cab(libSel);if(!c)return;const n=clone(c);n.id='c'+Date.now().toString(36);n.model+=' (copia)';n.example=false;LIB.push(n);libSel=n.id;saveLib();renderAll();},
+  'lib-del':()=>{if(b.dataset.ok){const dl=store.get('tpa.libDel',[]);dl.push(libSel);store.set('tpa.libDel',dl);LIB=LIB.filter(c=>c.id!==libSel);libSel=null;saveLib();renderAll();toast('Caja borrada');}else{b.dataset.ok='1';b.textContent='Confirmar borrado';}},
+  'lib-io':()=>openModal(`<div class="mh"><h2>Biblioteca</h2><button class="x" data-act="close" aria-label="Cerrar">×</button></div><p class="sub">Copiá este texto para guardarlo o pasárselo a otra persona. Para importar, pegá una biblioteca y tocá Importar. Las cajas con el mismo id se reemplazan.</p><textarea id="ioTxt">${esc(JSON.stringify(LIB,null,1))}</textarea><div class="btnrow"><button class="btn" data-act="copy">Copiar</button><button class="btn pri" data-act="lib-import">Importar</button></div>`),
+  'lib-import':()=>{try{const d=JSON.parse($('#ioTxt').value);const arr=Array.isArray(d)?d:d.cabs;if(!Array.isArray(arr))throw 0;let n=0;arr.forEach(c=>{if(c&&c.id&&TYPES[c.type]&&c.f){LIB=LIB.filter(x=>x.id!==c.id);LIB.push(c);n++;}});saveLib();closeModal();renderAll();toast(`${n} cajas importadas`);}catch(err){toast('El texto no es una biblioteca válida');}},
+  'copy':()=>{const ta=$('#ioTxt');const ok=()=>toast('Copiado');try{navigator.clipboard.writeText(ta.value).then(ok,()=>{ta.select();toast('Seleccionado. Copialo con Ctrl+C');});}catch(err){ta.select();toast('Seleccionado. Copialo con Ctrl+C');}},
+  'new':()=>openModal(`<div class="mh"><h2>Proyecto nuevo</h2><button class="x" data-act="close" aria-label="Cerrar">×</button></div><p>Lo que no guardaste del proyecto actual se pierde.</p><div class="btnrow"><button class="btn pri" data-act="new-ok">Empezar de cero</button><button class="btn" data-act="close">Cancelar</button></div>`),
+  'new-ok':()=>{S=DEF();S.meta.name='Proyecto nuevo';S.ps=[];S.subs.list=genSubs(S.subs);closeModal();renderAll();schedule();},
+  'save':()=>{if(!S.id)S.id='p'+Date.now().toString(36);const P=store.get('tpa.projects',{});const used=new Set([S.la.cab,S.subs.cab,...S.ps.map(p=>p.cab)]);
+   P[S.id]={id:S.id,name:S.meta.name,saved:Date.now(),data:{...clone(S),cabs:LIB.filter(c=>used.has(c.id))}};toast(store.set('tpa.projects',P)?'Proyecto guardado':'No se pudo guardar en este navegador');store.set('tpa.cur',S);},
+  'open':openProjects,
+  'proj-open':()=>{const P=store.get('tpa.projects',{});const d=P[b.dataset.id];if(d)loadProject(d.data);closeModal();},
+  'proj-del':()=>{if(!b.dataset.ok){b.dataset.ok='1';b.textContent='Confirmar';return;}const P=store.get('tpa.projects',{});delete P[b.dataset.id];store.set('tpa.projects',P);openProjects();},
+  'demo1':()=>{loadProject(DEF());closeModal();},'demo2':()=>{loadProject(DEMO2());closeModal();},
+  'export':()=>openExport('rep'),'exp-rep':()=>openExport('rep'),'exp-json':()=>openExport('json'),
+  'proj-import':()=>{try{const d=JSON.parse($('#impTxt').value);if(!d.la||!d.subs)throw 0;loadProject(d);closeModal();toast('Proyecto cargado');}catch(err){toast('El texto no es un proyecto válido');}},
+  'menu':()=>openModal(`<div class="mh"><h2>Menú</h2><button class="x" data-act="close" aria-label="Cerrar">×</button></div><div class="btnrow" style="flex-direction:column">${[['save','Guardar proyecto'],['open','Abrir proyecto'],['new','Proyecto nuevo'],['export','Exportar informe'],['config','Ajustes'],['help','Cómo se usa']].map(([a,t])=>`<button class="btn${a==='save'?' pri':''}" data-act="${a}" data-mclose="1">${t}</button>`).join('')}</div>`),
+  'more':()=>openModal(`<div class="mh"><h2>Más pantallas</h2><button class="x" data-act="close" aria-label="Cerrar">×</button></div><div class="btnrow" style="flex-direction:column">${VIEWS.filter(v=>!['montaje','dist','map'].includes(v.id)).map(v=>`<button class="btn${v.id===view?' pri':''}" data-view="${v.id}">${v.n}</button>`).join('')}</div>`),
+  'config':openConfig,'help':openHelp,'close':closeModal};
+ if(A[a])A[a]();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#modal').hidden)closeModal();if(e.key==='Enter'&&e.target.matches('tr[data-id]'))e.target.click();});
+$('#modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal();});
+document.addEventListener('change',e=>{if(e.target.id==='impFile'){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{$('#impTxt').value=r.result;};r.readAsText(f);}});
+
+/* mapa interactivo */
+function mapPos(e){const c=$('#cvMap');if(!c||!MAP||!MAP.t)return null;const r=c.getBoundingClientRect();return{x:MAP.t.ix(e.clientX-r.left),y:MAP.t.iy(e.clientY-r.top)};}
+document.addEventListener('pointermove',e=>{if(e.target.id!=='cvMap')return;const p=mapPos(e);if(!p)return;MAP.hover=p;drawMap();});
+document.addEventListener('pointerleave',e=>{if(e.target.id==='cvMap'&&MAP){MAP.hover=null;drawMap();}},true);
+document.addEventListener('pointerdown',e=>{if(e.target.id!=='cvMap')return;const p=mapPos(e);if(!p||p.y<0||p.y>S.venue.d||Math.abs(p.x)>S.venue.w/2)return;S.map.lp={x:+p.x.toFixed(1),y:+p.y.toFixed(1)};
+ const ix=$('#f-map-lp-x'),iy=$('#f-map-lp-y');if(ix)ix.value=S.map.lp.x;if(iy)iy.value=S.map.lp.y;drawMap();drawSpec(buildModel({}));store.set('tpa.cur',S);});
+
+/* ================= modales ================= */
+function openModal(h){$('#mbody').innerHTML=h;$('#modal').hidden=false;$('#mbody').querySelector('input,textarea,button')?.focus();}
+function closeModal(){const was=!$('#modal').hidden;$('#modal').hidden=true;$('#mbody').innerHTML='';if(was&&(view==='delay'||view==='calc'))renderProps();if(was)schedule();}
+function loadProject(d){const cabs=d.cabs||[];cabs.forEach(c=>{if(!cab(c.id))LIB.push(c);});saveLib();const x=clone(d);delete x.cabs;S=merge(DEF(),x);while(S.la.splay.length<5)S.la.splay.push(0);if(!S.subs.list.length&&S.subs.cfg!=='custom')S.subs.list=genSubs(S.subs);store.set('tpa.cur',S);renderAll();}
+function openProjects(){const P=Object.values(store.get('tpa.projects',{})).sort((a,b)=>b.saved-a.saved);
+ openModal(`<div class="mh"><h2>Abrir proyecto</h2><button class="x" data-act="close" aria-label="Cerrar">×</button></div>
+<div class="plist">${P.length?P.map(p=>`<div><span>${esc(p.name)}<small>Guardado ${new Date(p.saved).toLocaleString('es-AR',{dateStyle:'short',timeStyle:'short'})}</small></span><button class="btn sm pri" data-act="proj-open" data-id="${p.id}">Abrir</button><button class="btn sm danger" data-act="proj-del" data-id="${p.id}">Borrar</button></div>`).join(''):'<p class="sub">Todavía no guardaste proyectos en este navegador.</p>'}</div>
+<h3 style="margin:4px 0 0;font:600 15px var(--ui)">Proyectos de demostración</h3><div class="btnrow"><button class="btn" data-act="demo1">Salón 24 × 35 m</button><button class="btn" data-act="demo2">Exterior 40 × 60 m con torres</button></div>
+<h3 style="margin:4px 0 0;font:600 15px var(--ui)">Desde un archivo o texto</h3><input type="file" id="impFile" accept=".json,application/json,text/plain"><textarea id="impTxt" placeholder="Pegá acá el texto de un proyecto exportado" style="min-height:90px"></textarea><div class="btnrow"><button class="btn" data-act="proj-import">Cargar</button></div>`);}
+function report(){const lc=cab(S.la.cab),pc=cab(S.pa.cab),sc=cab(S.subs.cab),m=S.meta,L=[];const fs=S.env.fs;
+ L.push(`PROYECTO: ${m.name}`);if(m.event)L.push(`Evento: ${m.event}`);if(m.client)L.push(`Cliente: ${m.client}`);if(m.venue)L.push(`Lugar: ${m.venue}`);if(m.date)L.push(`Fecha: ${m.date}`);
+ L.push(`Recinto: ${fmt(S.venue.w,1)} × ${fmt(S.venue.d,1)} m. Público desde ${fmt(S.venue.aud,1)} m. FOH a ${fmt(S.venue.fohY,1)} m. Temperatura ${fmt(S.env.temp,0)} °C (${fmt(C(),1)} m/s).`,'');
+ if(S.pa.type==='la')L.push('PA: LINE ARRAY',`${S.la.n} × ${cname(lc)} por lado (${S.la.n*2} en total)`,`Altura de colgado ${fmt(S.la.rigH,2)} m. Inclinación de la primera caja ${fmt(S.la.site,1)}°`,`Ángulos entre cajas: ${S.la.splay.slice(0,S.la.n-1).map(v=>fmt(v,1)+'°').join(', ')||'–'}`,`Separación entre lados ${fmt(S.la.x*2,2)} m`,'');
+ else if(S.pa.type==='ps')L.push('PA: CAJAS',`${S.pa.n} × ${cname(pc)} por lado (${S.pa.n*2} en total)`,`Altura del centro ${fmt(S.pa.h,2)} m. Inclinación ${fmt(S.pa.tilt,1)}°`,`Separación entre lados ${fmt(S.la.x*2,2)} m`,'');
+ else L.push('Sin PA principal','');
+ if(S.subs.on&&S.subs.list.length){L.push('SUBS',`${S.subs.list.length} × ${cname(sc)}. Ubicación: ${CFGS.find(c=>c[0]===S.subs.cfg)[1]}`);S.subs.list.forEach((s,i)=>L.push(`  Sub ${i+1}: x ${fmt(s.x,2)} y ${fmt(s.y,2)} m, ${+s.ang===180?'mirando atrás':'mirando al frente'}, delay propio ${fmt(s.delay,2)} ms, polaridad ${+s.pol===1?'+':'−'}`));
+  {const gg=S.pa.type!=='none'?geoAt(refPoint()):null;if(S.mt.route==='chain'&&gg&&isNum(gg.ms)){const kk=knobFor(gg.ms,S.xo.fc);L.push('',`ALINEACIÓN PA + SUBS, medida en ${refPoint().n}`,`Señal en cadena. Perilla de fase del sub en ${kk.k}° con corte en ${S.xo.fc} Hz (equivale a ${fmt(gg.ms,2)} ms)`,'');}else L.push('',`ALINEACIÓN PA + SUBS, medida en ${refPoint().n}`,`Delay subs ${fmt(S.xo.subDelay,2)} ms (${Math.round(S.xo.subDelay*fs/1000)} muestras). Delay tops ${fmt(S.xo.topDelay,2)} ms (${Math.round(S.xo.topDelay*fs/1000)} muestras)`,`Polaridad subs ${S.xo.subPol===1?'normal':'invertida'}. Cruce ${S.xo.fc} Hz`,'');}}
+ if(S.ps.length){L.push(`CAJAS DISTRIBUIDAS (alineadas con ${S.dist.ref==='first'||S.pa.type==='none'?'la primera fila de cajas':'el PA'}, adelanto ${fmt(S.dist.offset,1)} ms)`);S.ps.forEach((p,i)=>L.push(`  ${i+1}. ${p.role}, ${cname(cab(p.cab))}: a ${fmt(p.y,1)} m, lateral ${fmt(p.x,1)} m, altura ${fmt(p.z,1)} m. Delay ${fmt(p.delay,2)} ms (${Math.round(p.delay*fs/1000)} muestras)`));L.push('');}
+ const cnt={};const addc=(c,n)=>{if(!c)return;cnt[cname(c)]=(cnt[cname(c)]||0)+n;};if(S.pa.type==='la')addc(lc,S.la.n*2);if(S.pa.type==='ps')addc(pc,S.pa.n*2);if(S.subs.on)addc(sc,S.subs.list.length);S.ps.forEach(p=>addc(cab(p.cab),1));
+ L.push('LISTADO DE EQUIPOS',...Object.entries(cnt).map(([k,v])=>`  ${v} × ${k}`),'');
+ L.push('Delays calculados por distancia. Verificar y ajustar midiendo en el lugar.');return L.join('\n');}
+function openExport(tab){openModal(`<div class="mh"><h2>Exportar</h2><button class="x" data-act="close" aria-label="Cerrar">×</button></div>
+<div class="tabs"><button class="${tab==='rep'?'on':''}" data-act="exp-rep">Informe técnico</button><button class="${tab==='json'?'on':''}" data-act="exp-json">Archivo del proyecto</button></div>
+<p class="sub">${tab==='rep'?'Equipos, posiciones, ángulos, delays y filtros. Copialo para pegarlo en un mail, en WhatsApp o en la hoja de ruta.':'Copiá este texto y guardalo. Se vuelve a cargar desde Abrir. Incluye las cajas usadas.'}</p>
+<textarea id="ioTxt">${esc(tab==='rep'?report():JSON.stringify({...S,cabs:LIB.filter(c=>[S.la.cab,S.subs.cab,...S.ps.map(p=>p.cab)].includes(c.id))},null,1))}</textarea>
+<div class="btnrow"><button class="btn pri" data-act="copy">Copiar</button></div>`);}
+function openConfig(){const tx=(l,p)=>`<label>${l}<input type="text" data-p="${p}" value="${esc(get(p))}"></label>`,nm=(l,p,st)=>`<label>${l}<input type="number" step="${st}" data-p="${p}" value="${get(p)}"></label>`;
+ openModal(`<div class="mh"><h2>Ajustes</h2><button class="x" data-act="close" aria-label="Cerrar">×</button></div>
+<h3 style="margin:0;font:600 15px var(--ui)">Datos del evento</h3><div class="grid2">${tx('Evento','meta.event')}${tx('Cliente','meta.client')}${tx('Lugar','meta.venue')}${tx('Fecha','meta.date')}</div>
+<h3 style="margin:0;font:600 15px var(--ui)">Cálculo</h3><div class="grid2">${nm('Temperatura (°C)','env.temp',1)}${nm('Altura de oídos (m)','env.earH',0.1)}${nm('Headroom de las cajas (dB)','env.head',1)}${nm('Resolución del mapa (m)','env.cell',0.1)}
+<label>Frecuencia de muestreo<select data-p="env.fs" data-num>${[44100,48000,96000].map(v=>`<option value="${v}"${v===S.env.fs?' selected':''}>${v/1000} kHz</option>`).join('')}</select></label></div>
+<p class="sub">El headroom baja la potencia de cada caja respecto de su RMS. Con 6 dB, la predicción usa un cuarto de la potencia nominal.</p><div class="btnrow"><button class="btn pri" data-act="close">Listo</button></div>`);}
+function openHelp(){store.set('tpa.seen',1);openModal(`<div class="mh"><h2>Cómo se usa</h2><button class="x" data-act="close" aria-label="Cerrar">×</button></div>
+<ol><li>En Montaje cargá el recinto, el PA (line array o cajas) y dónde van los subs. Arriba aparece el delay para arrancar y dónde cargarlo.</li>
+<li>Si tenés cajas repartidas por el lugar, agregalas en Cajas distribuidas y cada una recibe su delay.</li>
+<li>En Mapa de cobertura ves cómo queda el sonido en el público. Para eso cada caja necesita sus datos completos en la Biblioteca. Tus modelos ya están creados para que les cargues la ficha.</li>
+<li>Avanzado es para afinar: ángulos del line array, configuraciones de subs y curvas de fase.</li>
+<li>Guardá el proyecto y copiá el informe desde Exportar.</li></ol>
+<p class="sub">Los delays salen de las distancias, así que funcionan aunque falten datos de las cajas. Son un punto de partida: después se ajusta midiendo.</p>
+<div class="btnrow"><button class="btn pri" data-act="close">Empezar</button></div>`);}
+
+/* ================= arranque ================= */
+readK();
+const h0=(location.hash||'').slice(1);view=WORK[h0]?h0:'montaje';
+window.addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(WORK[h]&&h!==view)go(h);});
+renderAll();
+let rto,lastW=0;new ResizeObserver(en=>{const w=Math.round(en[0].contentRect.width);if(w===lastW)return;lastW=w;clearTimeout(rto);rto=setTimeout(update,120);}).observe($('#work'));
+if(document.fonts)document.fonts.ready.then(()=>update());
+if(!store.get('tpa.seen',0))setTimeout(openHelp,400);
+/* modo offline: solo en la versión instalada, que trae el manifest */
+if('serviceWorker' in navigator&&document.querySelector('link[rel="manifest"]')){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{});});}
+</script>
+</body>
+</html>
